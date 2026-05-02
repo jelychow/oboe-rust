@@ -125,6 +125,40 @@ GITHUB_ACTOR=<github-user> GITHUB_TOKEN=<token> \
 仓库内置 `.github/workflows/publish-github-packages.yml`，会在 GitHub Release 发布时自动验证并发布 Android wrapper package。建议 release tag 使用 `v0.1.0-alpha.1` 这种格式；workflow 会去掉前缀 `v`，最终发布 package version `0.1.0-alpha.1`。手动触发 workflow 仍然可用，适合显式重试某个版本。
 发布完成后，workflow 还会临时创建一个 Android app，从 GitHub Packages 远端拉取刚发布的 package 编译，并检查 APK 里是否包含四个 ABI 的 `liboboe_jni.so`。
 
+## JitPack
+
+JitPack 可以从公开 GitHub 仓库构建 Android wrapper，不需要 GitHub Packages 凭证。先添加 JitPack repository：
+
+```groovy
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+```
+
+然后依赖 wrapper module：
+
+```groovy
+dependencies {
+    implementation("com.github.jelychow.oboe-rust:oboe-wrapper:<tag-or-commit>")
+}
+```
+
+例如可以先用 `main-SNAPSHOT` 测试最新 `main` 分支构建；正式使用时，在这次 JitPack 配置合并后创建一个新的 Git tag，然后把 tag 当作 version。旧的上游 tag 早于当前 Rust/JitPack 发布脚本，不适合用来拉这个 package。
+
+根目录 `jitpack.yml` 会运行 `tools/publish-jitpack-android.sh`。这个脚本会按需安装 Rust targets 和 Android NDK，只构建 `liboboe_jni.so`，然后使用 JitPack 多模块坐标发布 Android wrapper 到 Maven Local：
+
+```sh
+JITPACK_GROUP_ID=com.github.jelychow.oboe-rust \
+JITPACK_ARTIFACT_ID=oboe-wrapper \
+JITPACK_VERSION=main-SNAPSHOT \
+  tools/publish-jitpack-android.sh
+```
+
 ## Android Gradle Sync
 
 用 Android Studio 打开仓库根目录。根 Gradle project 会暴露：

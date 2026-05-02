@@ -143,6 +143,47 @@ the package from GitHub Packages and checks that all four `liboboe_jni.so`
 ABIs are present. Manual workflow dispatch remains available for retrying a
 version explicitly.
 
+## JitPack
+
+JitPack can build the Android wrapper from the public GitHub repository without
+GitHub Packages credentials. Add JitPack as a repository:
+
+```groovy
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+```
+
+Then depend on the wrapper module:
+
+```groovy
+dependencies {
+    implementation("com.github.jelychow.oboe-rust:oboe-wrapper:<tag-or-commit>")
+}
+```
+
+For example, use `main-SNAPSHOT` to test the latest `main` branch build, or
+create a new Git tag after this JitPack configuration is merged and use that
+tag as the version. Older upstream tags predate this Rust/JitPack publishing
+script and should not be used for this package.
+
+The root `jitpack.yml` runs `tools/publish-jitpack-android.sh`. The script
+installs Rust targets and the Android NDK if needed, builds only
+`liboboe_jni.so`, and publishes the Android wrapper to Maven Local with
+JitPack's multi-module coordinates:
+
+```sh
+JITPACK_GROUP_ID=com.github.jelychow.oboe-rust \
+JITPACK_ARTIFACT_ID=oboe-wrapper \
+JITPACK_VERSION=main-SNAPSHOT \
+  tools/publish-jitpack-android.sh
+```
+
 ## Android Gradle Sync
 
 Open the repository root in Android Studio. The root Gradle project exposes:
