@@ -6,6 +6,7 @@ version.workspace = true
 
 [dependencies]
 oboe-android = { path = "../oboe-android" }
+oboe-core = { path = "../oboe-core" }
 
 [lib]
 crate-type = ["cdylib"]
