@@ -7,6 +7,7 @@ api_level="${API_LEVEL:-26}"
 android_ndk="${ANDROID_NDK:-$repo_root/.local/android-sdk/ndk/29.0.14206865}"
 toolchain_root="$android_ndk/toolchains/llvm/prebuilt"
 target_dir="${CARGO_TARGET_DIR:-$repo_root/rust/target}"
+selected_libraries="${RUST_ANDROID_LIBRARIES:-}"
 
 if [[ -n "${ANDROID_NDK_HOST_TAG:-}" ]]; then
   host_tag="$ANDROID_NDK_HOST_TAG"
@@ -68,6 +69,67 @@ libraries=(
   "openai-realtime-jni|libopenai_realtime_jni.so|$repo_root/android/oboe-wrapper/openai-realtime-app/src/main/jniLibs"
 )
 
+trim_space() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+should_build_library() {
+  local package="$1"
+  local selected
+
+  if [[ -z "$selected_libraries" ]]; then
+    return 0
+  fi
+
+  IFS=',' read -ra selected <<< "$selected_libraries"
+  for selected_package in "${selected[@]}"; do
+    selected_package="$(trim_space "$selected_package")"
+    if [[ "$selected_package" == "$package" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+validate_selected_libraries() {
+  local selected
+  local selected_package
+  local library
+  local package
+  local library_name
+  local out_root
+  local found
+
+  if [[ -z "$selected_libraries" ]]; then
+    return 0
+  fi
+
+  IFS=',' read -ra selected <<< "$selected_libraries"
+  for selected_package in "${selected[@]}"; do
+    selected_package="$(trim_space "$selected_package")"
+    found=0
+
+    for library in "${libraries[@]}"; do
+      IFS='|' read -r package library_name out_root <<< "$library"
+      if [[ "$selected_package" == "$package" ]]; then
+        found=1
+        break
+      fi
+    done
+
+    if [[ "$found" -ne 1 ]]; then
+      echo "Unknown Rust Android library '$selected_package' in RUST_ANDROID_LIBRARIES." >&2
+      exit 1
+    fi
+  done
+}
+
+validate_selected_libraries
+
 for target in "${targets[@]}"; do
   IFS='|' read -r abi triple linker linker_env cc_env_suffix <<< "$target"
   linker_path="$(resolve_tool "$linker")"
@@ -79,6 +141,10 @@ for target in "${targets[@]}"; do
 
   for library in "${libraries[@]}"; do
     IFS='|' read -r package library_name out_root <<< "$library"
+    if ! should_build_library "$package"; then
+      continue
+    fi
+
     cargo build \
       --manifest-path "$manifest_path" \
       -p "$package" \

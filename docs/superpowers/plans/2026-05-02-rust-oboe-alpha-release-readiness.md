@@ -81,8 +81,8 @@ Replace the `[workspace.package]` section in `rust/Cargo.toml` with:
 edition = "2021"
 license = "Apache-2.0"
 version = "0.1.0-alpha.1"
-repository = "https://github.com/seczhou/oboe-rust"
-homepage = "https://github.com/seczhou/oboe-rust"
+repository = "https://github.com/jelychow/oboe-rust"
+homepage = "https://github.com/jelychow/oboe-rust"
 documentation = "https://docs.rs/oboe-core"
 rust-version = "1.82"
 ```

@@ -1,0 +1,55 @@
+name: Publish GitHub Packages
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish-android-wrapper:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager_bin="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$sdkmanager_bin" ]]; then
+            sdkmanager_bin="$(command -v sdkmanager)"
+          fi
+          yes | "$sdkmanager_bin" --licenses >/dev/null || true
+          "$sdkmanager_bin" "ndk;29.0.14206865"
+          echo "ANDROID_NDK=${ANDROID_HOME}/ndk/29.0.14206865" >> "$GITHUB_ENV"
+
+      - name: Build Android JNI libraries
+        run: bash tools/build-rust-android.sh
+        env:
+          RUST_ANDROID_LIBRARIES: oboe-jni
+
+      - name: Publish Android wrapper to GitHub Packages
+        working-directory: android/oboe-wrapper
+        run: ./gradlew :oboe-wrapper:publishReleasePublicationToGitHubPackagesRepository --no-daemon --console=plain
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

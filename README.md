@@ -1,5 +1,7 @@
 # oboe-rust
 
+[简体中文](README.zh-CN.md)
+
 This repository has been reduced to the Rust-native Android audio path.
 
 The legacy C++ implementation, C++ public headers, CMake/Prefab build scripts, sample apps, and C++ test runner have been removed. The supported implementation is now:
@@ -9,6 +11,7 @@ The legacy C++ implementation, C++ public headers, CMake/Prefab build scripts, s
 - `rust/oboe-jni`: JNI handle layer exposed to Java.
 - `android/oboe-wrapper`: Android Java wrapper and smoke tests.
 - `tools/build-rust-android.ps1`: Android ABI build helper for `liboboe_jni.so`.
+- `tools/build-rust-android.sh`: Linux/macOS Android ABI build helper for GitHub Actions and local publishing.
 
 ## Release Scope
 
@@ -49,6 +52,52 @@ VERIFY_PUBLISHED_DEPS=1 tools/check-rust-release.sh
 
 JNI `.so` builds for Android sample apps are smoke checks rather than crates.io
 publish gates. Use `docs/rust-android-device-smoke.md` for that path.
+
+## GitHub Packages
+
+The Android wrapper can be published as an AAR to GitHub Packages:
+
+```groovy
+repositories {
+    maven {
+        url = uri("https://maven.pkg.github.com/jelychow/oboe-rust")
+        credentials {
+            username = findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+            password = findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+        }
+    }
+}
+
+dependencies {
+    implementation("io.github.jelychow.oboe:oboe-rust-android:0.1.0-alpha.1")
+}
+```
+
+Build the native JNI libraries before publishing so the AAR contains the
+Android `.so` files:
+
+```sh
+RUST_ANDROID_LIBRARIES=oboe-jni tools/build-rust-android.sh
+```
+
+Publish locally for validation:
+
+```sh
+cd android/oboe-wrapper
+./gradlew :oboe-wrapper:publishReleasePublicationToMavenLocal
+```
+
+Publish to GitHub Packages with a token that can write packages:
+
+```sh
+cd android/oboe-wrapper
+GITHUB_ACTOR=<github-user> GITHUB_TOKEN=<token> \
+  ./gradlew :oboe-wrapper:publishReleasePublicationToGitHubPackagesRepository
+```
+
+The repository also includes `.github/workflows/publish-github-packages.yml`,
+which publishes the Android wrapper package from a release, a `v*` tag, or a
+manual workflow dispatch.
 
 ## Android Gradle Sync
 
