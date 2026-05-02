@@ -2,10 +2,16 @@
 
 [简体中文](README.zh-CN.md)
 
-This repository has been reduced to the Rust-native Android audio path.
+This repository now carries **two Android integration lanes**:
 
-The legacy C++ implementation, C++ public headers, CMake/Prefab build scripts, sample apps, and C++ test runner have been removed. The supported implementation is now:
+- **Route C / C++ consumer lane**: restored public headers, root CMake entrypoint, and Prefab metadata for Android game projects that depend on C++ headers, callback-driven realtime audio, stable buffer control, xrun/underrun visibility, route/device change handling, and low-latency/native-device adaptation workflows.
+- **Rust-native lane**: Rust crates, JNI bridge, and the Android Java wrapper used for the Rust-first experiments and publishing flow.
 
+The currently supported components are:
+
+- `include/oboe`: restored C++ public headers for native Android and game-engine consumers.
+- `CMakeLists.txt`: root CMake entrypoint for the C++/Prefab lane.
+- `prefab`: restored Prefab metadata scaffold for Android packaging.
 - `rust/oboe-core`: backend-neutral stream, builder, FIFO, format, resampler, callback, and extension state.
 - `rust/oboe-android`: Android AAudio and OpenSL ES backend FFI.
 - `rust/oboe-jni`: JNI handle layer exposed to Java.
@@ -14,7 +20,7 @@ The legacy C++ implementation, C++ public headers, CMake/Prefab build scripts, s
 - `tools/build-rust-android.ps1`: Android ABI build helper for `liboboe_jni.so`.
 - `tools/build-rust-android.sh`: Linux/macOS Android ABI build helper for GitHub Actions and local publishing.
 
-Demo-specific native bridges are intentionally outside the publishable Rust
+Demo-specific native bridges remain intentionally outside the publishable Rust
 workspace. `examples/rust/oboe-samples-jni` backs the sample launcher. The
 preserved `android/oboe-wrapper/openai-realtime-app` demo uses Kotlin/Ktor for
 OpenAI Realtime networking and consumes Oboe through the Android SDK wrapper.
@@ -22,10 +28,25 @@ OpenAI Realtime networking and consumes Oboe through the Android SDK wrapper.
 ## Release Scope
 
 The Rust crates are currently alpha-quality. Before publishing or consuming them
-as library dependencies, read `docs/rust-oboe-release-scope.md`. The alpha
-release is not a drop-in replacement for the C++ Oboe API.
+as library dependencies, read `docs/rust-oboe-release-scope.md`. The Rust alpha
+release is **not** a drop-in replacement for the C++ Oboe API. For Android game
+projects that require C++ headers / CMake / Prefab and callback-driven realtime
+I/O, prefer the restored Route C surface and validate on physical devices.
 
 ## Build and Test
+
+### Route C / C++ consumer lane
+
+Use this lane for Android game projects that depend on public C++ headers, CMake,
+Prefab, and callback-driven low-latency audio:
+
+```sh
+bash tools/check-route-c-foundation.sh
+bash tools/check-route-c-live-build-surface.sh
+cmake -S . -B build-cpp-route-c
+```
+
+### Rust-native lane
 
 ```sh
 tools/check-public-surface.sh

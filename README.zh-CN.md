@@ -2,10 +2,16 @@
 
 [English](README.md)
 
-这个仓库已经收敛为 Rust 原生的 Android 音频实现路径。
+这个仓库现在同时维护 **两条 Android 接入路径**：
 
-旧的 C++ 实现、C++ 公共头文件、CMake/Prefab 构建脚本、示例应用和 C++ 测试入口已经移除。当前支持的实现包括：
+- **Route C / C++ 消费路径**：恢复了面向 Android 游戏项目的 C++ 公共头文件、根 CMake 入口和 Prefab 元数据，适合依赖 C++ headers、回调驱动实时音频、稳定 buffer 控制、xrun/underrun 可观测性、route/device change 处理以及低延迟设备适配能力的工程。
+- **Rust-native 路径**：保留 Rust crates、JNI bridge 和 Android Java wrapper，继续服务 Rust-first 的实验和发布流程。
 
+当前仓库内的主要组成包括：
+
+- `include/oboe`：恢复的 C++ 公共头文件，供原生 Android / 游戏引擎消费者使用。
+- `CMakeLists.txt`：C++ / Prefab 路径的根 CMake 入口。
+- `prefab`：恢复的 Android 打包元数据骨架。
 - `rust/oboe-core`：与后端无关的 stream、builder、FIFO、format、resampler、callback 和扩展状态。
 - `rust/oboe-android`：Android AAudio 和 OpenSL ES 后端 FFI。
 - `rust/oboe-jni`：暴露给 Java 的 JNI handle 层。
@@ -14,14 +20,14 @@
 - `tools/build-rust-android.ps1`：Windows 上构建 Android ABI `liboboe_jni.so` 的辅助脚本。
 - `tools/build-rust-android.sh`：Linux/macOS 上构建 Android ABI 的辅助脚本，供 GitHub Actions 和本地发布使用。
 
-Demo 专用 native bridge 不再放在可发布 Rust workspace 里。
+Demo 专用 native bridge 仍然不放在可发布 Rust workspace 里。
 `examples/rust/oboe-samples-jni` 支撑样例 launcher。保留的
 `android/oboe-wrapper/openai-realtime-app` demo 使用 Kotlin/Ktor 处理
 OpenAI Realtime 网络，并通过 Android SDK wrapper 使用 Oboe。
 
 ## 发布范围
 
-Rust crates 目前仍处于 alpha 阶段。发布或作为库依赖使用之前，请先阅读 `docs/rust-oboe-release-scope.md`。当前 alpha 版本不是 C++ Oboe API 的直接替代品。
+Rust crates 目前仍处于 alpha 阶段。发布或作为库依赖使用之前，请先阅读 `docs/rust-oboe-release-scope.md`。Rust alpha 版本**不是** C++ Oboe API 的直接替代品。对于依赖 C++ headers / CMake / Prefab、需要 callback 驱动实时 I/O 的 Android 游戏项目，应优先使用恢复的 Route C 路径，并在真机上完成验证。
 
 ## 构建和测试
 
