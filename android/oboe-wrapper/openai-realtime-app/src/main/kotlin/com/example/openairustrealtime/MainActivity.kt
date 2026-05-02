@@ -147,7 +147,7 @@ class MainActivity : Activity() {
                 typeface = Typeface.DEFAULT_BOLD
             })
             addView(TextView(context).apply {
-                text = "TTS, ASR, realtime chat, and translate on Rust oboe"
+                text = "TTS, ASR, realtime chat, and translate with Ktor and the Oboe SDK"
                 setTextColor(COLOR_MUTED)
                 textSize = 14f
                 gravity = Gravity.CENTER

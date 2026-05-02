@@ -6,6 +6,7 @@ version.workspace = true
 publish = false
 
 [dependencies]
+jni = "0.21"
 oboe-android = { path = "../oboe-android" }
 oboe-core = { path = "../oboe-core" }
 

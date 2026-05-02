@@ -1,12 +1,13 @@
-# OpenAI Voice Rust Android App
+# OpenAI Voice Kotlin/Ktor Android App
 
 This sample app is at `android/oboe-wrapper/openai-realtime-app`.
 
 It uses:
 
-- Rust JNI crate: `rust/openai-realtime-jni`
-- Rust oboe audio backend: AAudio input and output at 24 kHz mono
-- OpenAI Realtime WebSocket: `wss://api.openai.com/v1/realtime?model=gpt-realtime`
+- Oboe SDK audio path: `implementation project(':oboe-wrapper')` with
+  `com.google.oboe.AudioStream` input and output at 24 kHz mono
+- Ktor OpenAI Realtime WebSocket:
+  `wss://api.openai.com/v1/realtime?model=gpt-realtime`
 - OpenAI Audio REST endpoints for TTS and ASR
 - Kotlin Android UI with a Now in Android inspired split between model,
   network, data, feature state, and Activity code
@@ -20,22 +21,25 @@ written to the repository. This is sample convenience storage, not production
 secret storage; use Android Keystore-backed storage before shipping this app to
 end users.
 
-## Build Native Libraries
+## Build Oboe SDK Native Library
 
-On WSL or Linux, provide an Android NDK path and build the native libraries:
+The app does not ship its own Realtime JNI library. It consumes the Oboe SDK
+module, so only `:oboe-wrapper` needs `liboboe_jni.so` built for Android ABIs.
+On WSL or Linux:
 
 ```bash
-ANDROID_NDK=/path/to/Android/Sdk/ndk/<version> tools/build-rust-android.sh
+ANDROID_NDK=/path/to/Android/Sdk/ndk/<version> \
+RUST_ANDROID_LIBRARIES=oboe-jni \
+tools/build-rust-android.sh
 ```
 
-The PowerShell native build path also works for simple crates, but the Realtime
-crate pulls in `rustls` and `ring`, so Windows cargo needs a working MSVC
-`link.exe`.
+The full Rust Android build helper also builds the sample launcher JNI crate,
+but it no longer builds a Realtime app JNI library.
 
 ## Build APK
 
-After native libraries exist under `src/main/jniLibs`, build the debug APK with
-Gradle:
+After `android/oboe-wrapper/oboe-wrapper/src/main/jniLibs` contains
+`liboboe_jni.so`, build the debug APK with Gradle:
 
 ```bash
 cd android/oboe-wrapper
@@ -89,13 +93,13 @@ In the app:
    - Enter text, keep `gpt-4o-mini-tts`, choose a voice, and tap Synthesize and
      Play.
    - The app requests raw 24 kHz signed 16-bit PCM and plays it through the
-     Rust JNI native oboe/AAudio output path.
+     `com.google.oboe` SDK output stream.
 4. Use ASR:
    - Select ASR.
    - Keep `gpt-4o-transcribe`, tap Record, speak briefly, then tap Stop and
      Transcribe.
-   - Recording is captured through the Rust JNI native oboe/AAudio input path
-     and written as a WAV file for the transcription request.
+   - Recording is captured through the `com.google.oboe` SDK input stream and
+     written as a WAV file for the transcription request.
 5. Use Realtime:
    - Select Realtime.
    - Keep `gpt-realtime`, adjust assistant instructions, and tap Start
@@ -109,8 +113,9 @@ In the app:
 7. Tap Clear to remove the locally saved key.
 
 During a live session, `Mic sent` should increase when microphone audio is being
-captured and sent to Realtime. `Output played` should increase when assistant
-audio chunks are received and written to AAudio playback.
+captured through the Oboe SDK and sent to Realtime. `Output played` should
+increase when assistant audio chunks are received and written through the Oboe
+SDK output stream.
 
 The realtime screen mirrors those counters as live metric tiles and animates the
 mic/assistant signal view from chunk deltas. The event feed records status
@@ -123,33 +128,30 @@ session update includes `session.audio.input.format.rate` and
 
 ## Debugging Audio
 
-The native Rust layer writes compact logcat events with the
-`OpenAIRealtimeRust` tag:
+Realtime networking now runs in Kotlin through Ktor. Use Android and app logs
+for network/session issues:
 
 ```bash
-/mnt/f/Android/android-sdk/platform-tools/adb.exe logcat -s OpenAIRealtimeRust
+/mnt/f/Android/android-sdk/platform-tools/adb.exe logcat | grep openairustrealtime
 ```
 
 Expected healthy flow:
 
 ```text
-start requested
-connecting realtime websocket model=gpt-realtime
-realtime websocket connected
-session.update sent
-AAudio output started sample_rate=24000 channels=1
-AAudio input started sample_rate=24000 channels=1
-microphone audio sent chunks=1 frames=480
-server event=input_audio_buffer.speech_started
-server event=response.created
-assistant audio played chunks=1 frames=...
+Status: Connecting
+Status: Connected
+Mic +1 chunks
+Status: Listening
+Status: Responding
+Audio +1 chunks
+Transcript updated
 ```
 
 If Android's `AAudio` logs show both input and output streams opening with
 `AAUDIO_OK`, then microphone and playback devices are available. If `Mic sent`
-increases but `Output played` stays at zero, inspect the
-`OpenAIRealtimeRust` server events and errors first; the app is sending mic
-audio but is not receiving playable assistant audio deltas.
+increases but `Output played` stays at zero, inspect the visible error panel and
+event feed first; the app is sending mic audio but is not receiving playable
+assistant audio deltas.
 
 Realtime server errors and UI error text redact OpenAI keys as `sk-***`.
 
@@ -158,12 +160,12 @@ Realtime server errors and UI error text redact OpenAI keys as `sk-***`.
 The sample intentionally keeps one Android module but separates responsibilities:
 
 - `core.model`: immutable state and request models.
-- `core.network`: OpenAI speech and transcription HTTP calls.
-- `core.data`: API key storage, WAV recording, audio playback, and JNI-backed
-  repository.
+- `core.network`: OpenAI speech/transcription HTTP calls, Ktor Realtime
+  WebSocket session, and Realtime event protocol codec.
+- `core.audio`: Oboe SDK PCM playback, WAV recording, and realtime audio pump.
+- `core.data`: API key storage and repository orchestration.
 - `feature.voice`: UI state holder and workflow orchestration.
-- root package: `MainActivity`, `RealtimeSignalView`, and the `RealtimeNative`
-  JNI class whose package/name must match the Rust exported JNI symbols.
+- root package: `MainActivity` and `RealtimeSignalView`.
 
 ## Notes
 
@@ -173,5 +175,5 @@ The sample intentionally keeps one Android module but separates responsibilities
 - For production, use a backend to mint short-lived Realtime client secrets and
   pass only those ephemeral credentials to the app.
 - WebRTC is generally more robust for mobile media transport, but this sample
-  intentionally uses WebSocket so the Rust oboe audio path stays explicit and
-  inspectable.
+  intentionally uses WebSocket so the OpenAI session bridge stays explicit and
+  the Android audio path is exercised through the published Oboe SDK API.

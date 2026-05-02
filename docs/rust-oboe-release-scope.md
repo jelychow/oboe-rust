@@ -12,9 +12,20 @@ be described as experimental.
 | `oboe-android` | Yes | Android AAudio and OpenSL ES backend bindings. |
 | `oboe-samples` | Yes | Host-testable sample audio engines. |
 | `oboe-jni` | No | JNI bridge requires AAR and ABI packaging decisions. |
-| `oboe-samples-jni` | No | Android sample bridge follows the JNI release lane. |
-| `minimaloboe-rust-jni` | No | Demo app helper crate. |
-| `openai-realtime-jni` | No | Product sample helper crate, not an Oboe library crate. |
+
+## Example JNI Crates
+
+Demo-specific JNI crates live in `examples/rust` instead of the publishable
+Rust workspace:
+
+| Crate | Path | Purpose |
+| --- | --- | --- |
+| `oboe-samples-jni` | `examples/rust/oboe-samples-jni` | Android bridge for `android/oboe-wrapper/oboe-samples-app`. |
+
+The old standalone `minimaloboe-rust-jni`, `minimaloboe-rust-app`, and
+`openai-realtime-jni` demo bridge paths have been removed to keep the public API
+surface focused. The preserved OpenAI demo now uses Kotlin/Ktor for Realtime
+networking and the Android Oboe SDK wrapper for audio I/O.
 
 ## C++ Oboe Parity Snapshot
 

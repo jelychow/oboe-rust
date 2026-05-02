@@ -2,7 +2,8 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-manifest_path="$repo_root/rust/Cargo.toml"
+main_manifest_path="$repo_root/rust/Cargo.toml"
+examples_manifest_path="$repo_root/examples/rust/Cargo.toml"
 api_level="${API_LEVEL:-26}"
 android_ndk="${ANDROID_NDK:-$repo_root/.local/android-sdk/ndk/29.0.14206865}"
 toolchain_root="$android_ndk/toolchains/llvm/prebuilt"
@@ -31,8 +32,13 @@ fi
 
 toolchain_bin="$toolchain_root/$host_tag/bin"
 
-if [[ ! -f "$manifest_path" ]]; then
-  echo "Rust manifest not found at '$manifest_path'." >&2
+if [[ ! -f "$main_manifest_path" ]]; then
+  echo "Rust manifest not found at '$main_manifest_path'." >&2
+  exit 1
+fi
+
+if [[ ! -f "$examples_manifest_path" ]]; then
+  echo "Examples Rust manifest not found at '$examples_manifest_path'." >&2
   exit 1
 fi
 
@@ -63,10 +69,8 @@ targets=(
 )
 
 libraries=(
-  "oboe-jni|liboboe_jni.so|$repo_root/android/oboe-wrapper/oboe-wrapper/src/main/jniLibs"
-  "oboe-samples-jni|liboboe_samples_jni.so|$repo_root/android/oboe-wrapper/oboe-samples-app/src/main/jniLibs"
-  "minimaloboe-rust-jni|libminimaloboe_rust.so|$repo_root/android/oboe-wrapper/minimaloboe-rust-app/src/main/jniLibs"
-  "openai-realtime-jni|libopenai_realtime_jni.so|$repo_root/android/oboe-wrapper/openai-realtime-app/src/main/jniLibs"
+  "oboe-jni|$main_manifest_path|liboboe_jni.so|$repo_root/android/oboe-wrapper/oboe-wrapper/src/main/jniLibs"
+  "oboe-samples-jni|$examples_manifest_path|liboboe_samples_jni.so|$repo_root/android/oboe-wrapper/oboe-samples-app/src/main/jniLibs"
 )
 
 trim_space() {
@@ -100,6 +104,7 @@ validate_selected_libraries() {
   local selected_package
   local library
   local package
+  local package_manifest
   local library_name
   local out_root
   local found
@@ -114,7 +119,7 @@ validate_selected_libraries() {
     found=0
 
     for library in "${libraries[@]}"; do
-      IFS='|' read -r package library_name out_root <<< "$library"
+      IFS='|' read -r package package_manifest library_name out_root <<< "$library"
       if [[ "$selected_package" == "$package" ]]; then
         found=1
         break
@@ -140,13 +145,13 @@ for target in "${targets[@]}"; do
   export "AR_$cc_env_suffix=$ar_path"
 
   for library in "${libraries[@]}"; do
-    IFS='|' read -r package library_name out_root <<< "$library"
+    IFS='|' read -r package package_manifest library_name out_root <<< "$library"
     if ! should_build_library "$package"; then
       continue
     fi
 
     cargo build \
-      --manifest-path "$manifest_path" \
+      --manifest-path "$package_manifest" \
       -p "$package" \
       --release \
       --target "$triple" \

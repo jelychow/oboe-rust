@@ -4,14 +4,13 @@
 
     <application
         android:allowBackup="false"
-        android:extractNativeLibs="true"
-        android:label="OpenAI Realtime Rust"
+        android:label="OpenAI Realtime Ktor"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="OpenAI Realtime Rust">
+            android:label="OpenAI Realtime Ktor">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

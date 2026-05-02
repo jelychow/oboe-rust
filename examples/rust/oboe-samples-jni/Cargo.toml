@@ -6,9 +6,9 @@ version.workspace = true
 publish = false
 
 [dependencies]
-oboe-android = { path = "../oboe-android" }
-oboe-core = { path = "../oboe-core" }
-oboe-samples = { path = "../oboe-samples" }
+oboe-android = { path = "../../../rust/oboe-android" }
+oboe-core = { path = "../../../rust/oboe-core" }
+oboe-samples = { path = "../../../rust/oboe-samples" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

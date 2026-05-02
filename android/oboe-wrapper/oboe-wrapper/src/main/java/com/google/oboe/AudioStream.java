@@ -58,6 +58,12 @@ public final class AudioStream implements AutoCloseable {
 
     private static native int nativeSetRouteDeviceId(long handle, int deviceId);
 
+    private static native int nativeWriteFloat(
+            long handle, float[] audioData, int offset, int sampleCount, long timeoutNanos);
+
+    private static native int nativeReadFloat(
+            long handle, float[] audioData, int offset, int sampleCount, long timeoutNanos);
+
     public int requestStart() {
         ensureOpen();
         return nativeRequestStart(nativeHandle);
@@ -197,6 +203,20 @@ public final class AudioStream implements AutoCloseable {
         return nativeSetRouteDeviceId(nativeHandle, deviceId);
     }
 
+    public int writeFloat(
+            float[] audioData, int offset, int sampleCount, long timeoutNanos) {
+        ensureOpen();
+        validateFloatIo(audioData, offset, sampleCount, timeoutNanos);
+        return nativeWriteFloat(nativeHandle, audioData, offset, sampleCount, timeoutNanos);
+    }
+
+    public int readFloat(
+            float[] audioData, int offset, int sampleCount, long timeoutNanos) {
+        ensureOpen();
+        validateFloatIo(audioData, offset, sampleCount, timeoutNanos);
+        return nativeReadFloat(nativeHandle, audioData, offset, sampleCount, timeoutNanos);
+    }
+
     @Override
     public void close() {
         if (nativeHandle != 0) {
@@ -216,6 +236,25 @@ public final class AudioStream implements AutoCloseable {
     private static void validateFramesPerDataCallback(int framesPerDataCallback) {
         if (framesPerDataCallback < 0) {
             throw new IllegalArgumentException("framesPerDataCallback must be non-negative");
+        }
+    }
+
+    private static void validateFloatIo(
+            float[] audioData, int offset, int sampleCount, long timeoutNanos) {
+        if (audioData == null) {
+            throw new IllegalArgumentException("audioData must not be null");
+        }
+        if (offset < 0) {
+            throw new IllegalArgumentException("offset must be non-negative");
+        }
+        if (sampleCount < 0) {
+            throw new IllegalArgumentException("sampleCount must be non-negative");
+        }
+        if (timeoutNanos < 0) {
+            throw new IllegalArgumentException("timeoutNanos must be non-negative");
+        }
+        if (offset > audioData.length || sampleCount > audioData.length - offset) {
+            throw new IllegalArgumentException("audioData range is outside the array bounds");
         }
     }
 

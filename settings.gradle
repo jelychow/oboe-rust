@@ -25,8 +25,5 @@ project(':oboe-smoke-app').projectDir = file('android/oboe-wrapper/oboe-smoke-ap
 include ':oboe-samples-app'
 project(':oboe-samples-app').projectDir = file('android/oboe-wrapper/oboe-samples-app')
 
-include ':minimaloboe-rust-app'
-project(':minimaloboe-rust-app').projectDir = file('android/oboe-wrapper/minimaloboe-rust-app')
-
 include ':openai-realtime-app'
 project(':openai-realtime-app').projectDir = file('android/oboe-wrapper/openai-realtime-app')

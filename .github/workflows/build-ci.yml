@@ -25,13 +25,22 @@ jobs:
           java-version: 21
 
       - name: Check Rust formatting
-        run: cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+        run: |
+          cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+          cargo fmt --manifest-path examples/rust/Cargo.toml --all -- --check
+
+      - name: Check public project surface
+        run: tools/check-public-surface.sh
 
       - name: Lint Rust
-        run: cargo clippy --manifest-path rust/Cargo.toml --workspace --tests -- -D warnings
+        run: |
+          cargo clippy --manifest-path rust/Cargo.toml --workspace --tests -- -D warnings
+          cargo clippy --manifest-path examples/rust/Cargo.toml --workspace --tests -- -D warnings
 
       - name: Test Rust
-        run: cargo test --manifest-path rust/Cargo.toml
+        run: |
+          cargo test --manifest-path rust/Cargo.toml
+          cargo test --manifest-path examples/rust/Cargo.toml
 
       - name: Check Android Rust targets
         run: |

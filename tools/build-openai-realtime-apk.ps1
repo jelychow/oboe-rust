@@ -162,14 +162,6 @@ Invoke-ExternalCommand `
 
 Copy-Item -LiteralPath (Join-Path $dexDir "classes.dex") -Destination (Join-Path $packagingDir "classes.dex")
 
-$jniRoot = Join-Path $repoRoot "android/oboe-wrapper/openai-realtime-app/src/main/jniLibs"
-foreach ($library in Get-ChildItem -LiteralPath $jniRoot -Filter "libopenai_realtime_jni.so" -Recurse) {
-    $abi = Split-Path -Leaf (Split-Path -Parent $library.FullName)
-    $abiOutput = Join-Path $packagingDir "lib/$abi"
-    New-Item -ItemType Directory -Force -Path $abiOutput | Out-Null
-    Copy-Item -LiteralPath $library.FullName -Destination (Join-Path $abiOutput "libopenai_realtime_jni.so") -Force
-}
-
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [System.IO.Compression.ZipFile]::Open($unsignedApk, [System.IO.Compression.ZipArchiveMode]::Update)

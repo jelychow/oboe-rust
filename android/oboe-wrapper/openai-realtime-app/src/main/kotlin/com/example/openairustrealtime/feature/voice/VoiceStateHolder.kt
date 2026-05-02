@@ -127,7 +127,7 @@ class VoiceStateHolder(context: Context) : Closeable {
                             busy = false,
                             status = "Playing",
                             statusDetail = "Generated audio is playing from device output.",
-                            resultText = "Generated PCM audio: ${file.name} (${file.length()} bytes), playing through native oboe.",
+                            resultText = "Generated PCM audio: ${file.name} (${file.length()} bytes), playing through the Oboe SDK.",
                             lastError = ""
                         )
                     }
@@ -319,7 +319,7 @@ class VoiceStateHolder(context: Context) : Closeable {
                 busy = true,
                 realtimeRunning = true,
                 status = "Connecting",
-                statusDetail = "Opening Rust oboe Realtime session.",
+                statusDetail = "Opening Realtime session with Oboe SDK audio.",
                 resultTitle = resultTitle,
                 resultText = resultText,
                 lastError = "",
@@ -362,7 +362,7 @@ class VoiceStateHolder(context: Context) : Closeable {
                 realtimeRunning = false,
                 busy = false,
                 status = "Stopping",
-                statusDetail = "Closing Rust oboe Realtime session."
+                statusDetail = "Closing Realtime session and Oboe SDK audio."
             )
         }
         addEvent("Realtime session stopping")
@@ -420,6 +420,9 @@ class VoiceStateHolder(context: Context) : Closeable {
 
         if (shouldShowRealtime) {
             val stoppedByNative = status == "Stopped" || status == "Error"
+            if (stoppedByNative && state.realtimeRunning) {
+                executor.execute { repository.stopRealtime() }
+            }
             val nextRunning = state.realtimeRunning && !stoppedByNative
             update {
                 it.copy(
@@ -543,8 +546,8 @@ class VoiceStateHolder(context: Context) : Closeable {
         return when (mode) {
             VoiceMode.TTS -> "Text to speech generation and local playback."
             VoiceMode.ASR -> "Record a short microphone sample and transcribe it."
-            VoiceMode.REALTIME_CHAT -> "Live voice assistant through Rust oboe Realtime."
-            VoiceMode.REALTIME_TRANSLATE -> "Live microphone translation through Rust oboe Realtime."
+            VoiceMode.REALTIME_CHAT -> "Live voice assistant through Realtime and Oboe SDK audio."
+            VoiceMode.REALTIME_TRANSLATE -> "Live microphone translation through Realtime and Oboe SDK audio."
         }
     }
 

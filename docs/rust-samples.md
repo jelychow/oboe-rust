@@ -27,9 +27,9 @@ the Rust version of each sample.
 ## Android Device App
 
 `android/oboe-wrapper/oboe-samples-app` is a single launcher APK that runs every
-Rust sample on an Android device. Each button calls `oboe-samples-jni`, which
-renders the selected Rust sample and writes the generated float PCM through the
-Rust Android backend.
+Rust sample on an Android device. Each button calls
+`examples/rust/oboe-samples-jni`, which renders the selected Rust sample and
+writes the generated float PCM through the Rust Android backend.
 
 Build and install from PowerShell:
 
@@ -39,23 +39,3 @@ Build and install from PowerShell:
 
 The app defaults to AAudio and also exposes an OpenSL ES selector for devices
 where that backend is available.
-
-## Complete MinimalOboe Port
-
-`android/oboe-wrapper/minimaloboe-rust-app` is a fuller Rust port of upstream
-`samples/minimaloboe`:
-
-- Java package: `com.example.minimaloboe`
-- Native library: `libminimaloboe_rust.so`
-- UI behavior: Start Audio, Stop Audio, and current status text
-- Native behavior: static Rust player, low-latency float stereo output stream,
-  background audio writer, white-noise generation, stop-on-background lifecycle
-
-Build and install:
-
-```powershell
-.\tools\build-minimaloboe-rust-apk.ps1 -AndroidSdk C:\path\to\Android\Sdk -Install
-```
-
-The APK is also available after build at
-`build\minimaloboe-rust-apk\minimaloboe-rust-debug.apk`.

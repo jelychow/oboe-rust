@@ -30,7 +30,7 @@ class OpenAiAudioApi {
     }
 
     fun transcribe(apiKey: String, request: TranscriptionRequest, audioFile: File): String {
-        val boundary = "OpenAiRustBoundary-${UUID.randomUUID()}"
+        val boundary = "OpenAiVoiceBoundary-${UUID.randomUUID()}"
         val connection = openConnection("/audio/transcriptions", apiKey).apply {
             setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
         }

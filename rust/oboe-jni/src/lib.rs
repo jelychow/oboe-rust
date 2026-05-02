@@ -117,6 +117,22 @@ impl NativeStream {
         })
     }
 
+    fn write_f32(&mut self, audio: &[f32], timeout_nanos: jlong) -> jint {
+        match self {
+            Self::AAudio(stream) => stream.write_f32(audio, timeout_nanos),
+            Self::OpenSLES(stream) => stream.write_f32(audio, timeout_nanos),
+        }
+        .unwrap_or(-1)
+    }
+
+    fn read_f32(&mut self, audio: &mut [f32], timeout_nanos: jlong) -> jint {
+        match self {
+            Self::AAudio(stream) => stream.read_f32(audio, timeout_nanos),
+            Self::OpenSLES(stream) => stream.read_f32(audio, timeout_nanos),
+        }
+        .unwrap_or(-1)
+    }
+
     #[cfg(test)]
     fn backend_api(&self) -> AudioApi {
         match self {
@@ -215,6 +231,22 @@ fn format_from_jint(format: jint) -> Option<Format> {
 
 fn jboolean_to_bool(value: jboolean) -> bool {
     value != 0
+}
+
+fn validated_float_region(array_len: jint, offset: jint, sample_count: jint) -> Option<usize> {
+    if array_len < 0 || offset < 0 || sample_count < 0 {
+        return None;
+    }
+
+    let array_len = usize::try_from(array_len).ok()?;
+    let offset = usize::try_from(offset).ok()?;
+    let sample_count = usize::try_from(sample_count).ok()?;
+    let end = offset.checked_add(sample_count)?;
+    if end > array_len {
+        None
+    } else {
+        Some(end)
+    }
 }
 
 fn playback_parameters_from_jni(
@@ -461,6 +493,78 @@ pub extern "system" fn Java_com_google_oboe_AudioStream_nativeSetRouteDeviceId(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeWriteFloat(
+    env: jni::JNIEnv<'_>,
+    _class: jni::objects::JClass<'_>,
+    handle: jlong,
+    audio: jni::objects::JFloatArray<'_>,
+    offset: jint,
+    sample_count: jint,
+    timeout_nanos: jlong,
+) -> jint {
+    let array_len = match env.get_array_length(&audio) {
+        Ok(length) => length,
+        Err(_) => return -1,
+    };
+    if validated_float_region(array_len, offset, sample_count).is_none() {
+        return -1;
+    }
+
+    let sample_count = match usize::try_from(sample_count) {
+        Ok(sample_count) => sample_count,
+        Err(_) => return -1,
+    };
+    let mut buffer = vec![0.0_f32; sample_count];
+    if env
+        .get_float_array_region(&audio, offset, &mut buffer)
+        .is_err()
+    {
+        return -1;
+    }
+
+    with_stream_mut(handle, |stream| stream.write_f32(&buffer, timeout_nanos))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeReadFloat(
+    env: jni::JNIEnv<'_>,
+    _class: jni::objects::JClass<'_>,
+    handle: jlong,
+    audio: jni::objects::JFloatArray<'_>,
+    offset: jint,
+    sample_count: jint,
+    timeout_nanos: jlong,
+) -> jint {
+    let array_len = match env.get_array_length(&audio) {
+        Ok(length) => length,
+        Err(_) => return -1,
+    };
+    if validated_float_region(array_len, offset, sample_count).is_none() {
+        return -1;
+    }
+
+    let sample_count = match usize::try_from(sample_count) {
+        Ok(sample_count) => sample_count,
+        Err(_) => return -1,
+    };
+    let mut buffer = vec![0.0_f32; sample_count];
+    let read = with_stream_mut(handle, |stream| stream.read_f32(&mut buffer, timeout_nanos));
+    if read < 0 {
+        return read;
+    }
+
+    let read_count = usize::try_from(read).unwrap_or(0).min(buffer.len());
+    if env
+        .set_float_array_region(&audio, offset, &buffer[..read_count])
+        .is_err()
+    {
+        return -1;
+    }
+
+    read
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_google_oboe_AudioStream_nativeClose(
     _env: JNIEnv,
     _self: jobject,
@@ -491,11 +595,15 @@ mod tests {
     use core::ptr::null_mut;
 
     fn native_open(api: jint) -> jlong {
+        native_open_with_direction(api, 1)
+    }
+
+    fn native_open_with_direction(api: jint, direction: jint) -> jlong {
         Java_com_google_oboe_AudioStream_nativeOpen(
             null_mut(),
             null_mut(),
             api,
-            1,
+            direction,
             0,
             0,
             0,
@@ -585,6 +693,42 @@ mod tests {
             Java_com_google_oboe_AudioStream_nativeSetRouteDeviceId(null_mut(), null_mut(), 0, 7),
             -1
         );
+    }
+
+    #[test]
+    fn aaudio_streams_forward_float_blocking_io() {
+        let output_handle = native_open_with_direction(1, 1);
+        assert_ne!(output_handle, 0);
+        assert_eq!(
+            with_stream_mut(output_handle, |stream| stream.write_f32(&[0.0, 0.5], 0)),
+            2
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeClose(null_mut(), null_mut(), output_handle),
+            0
+        );
+
+        let input_handle = native_open_with_direction(1, 0);
+        assert_ne!(input_handle, 0);
+        let mut audio = [1.0_f32; 4];
+        assert_eq!(
+            with_stream_mut(input_handle, |stream| stream.read_f32(&mut audio, 0)),
+            4
+        );
+        assert_eq!(audio, [0.0, 0.0, 0.0, 0.0]);
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeClose(null_mut(), null_mut(), input_handle),
+            0
+        );
+    }
+
+    #[test]
+    fn float_array_range_validation_rejects_invalid_regions() {
+        assert_eq!(validated_float_region(8, 2, 4), Some(6));
+        assert_eq!(validated_float_region(8, -1, 4), None);
+        assert_eq!(validated_float_region(8, 2, -1), None);
+        assert_eq!(validated_float_region(8, 6, 3), None);
+        assert_eq!(validated_float_region(-1, 0, 1), None);
     }
 
     #[test]

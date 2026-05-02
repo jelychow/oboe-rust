@@ -12,15 +12,19 @@ if ($env:PATHEXT -notmatch '(^|;)\.EXE(;|$)') {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$manifestPath = Join-Path $repoRoot "rust/Cargo.toml"
+$mainManifestPath = Join-Path $repoRoot "rust/Cargo.toml"
+$examplesManifestPath = Join-Path $repoRoot "examples/rust/Cargo.toml"
 $wrapperOutRoot = Join-Path $repoRoot "android/oboe-wrapper/oboe-wrapper/src/main/jniLibs"
 $samplesOutRoot = Join-Path $repoRoot "android/oboe-wrapper/oboe-samples-app/src/main/jniLibs"
-$minimalOboeOutRoot = Join-Path $repoRoot "android/oboe-wrapper/minimaloboe-rust-app/src/main/jniLibs"
-$openAiRealtimeOutRoot = Join-Path $repoRoot "android/oboe-wrapper/openai-realtime-app/src/main/jniLibs"
 $toolchainBin = Join-Path $AndroidNdk "toolchains/llvm/prebuilt/windows-x86_64/bin"
+$targetDir = Join-Path $repoRoot "rust/target"
 
-if (-not (Test-Path -LiteralPath $manifestPath)) {
-    throw "Rust manifest not found at '$manifestPath'."
+if (-not (Test-Path -LiteralPath $mainManifestPath)) {
+    throw "Rust manifest not found at '$mainManifestPath'."
+}
+
+if (-not (Test-Path -LiteralPath $examplesManifestPath)) {
+    throw "Examples Rust manifest not found at '$examplesManifestPath'."
 }
 
 if (-not (Test-Path -LiteralPath $toolchainBin)) {
@@ -86,23 +90,15 @@ $targets = @(
 $libraryBuilds = @(
     @{
         Package = "oboe-jni"
+        Manifest = $mainManifestPath
         Library = "liboboe_jni.so"
         OutRoot = $wrapperOutRoot
     },
     @{
         Package = "oboe-samples-jni"
+        Manifest = $examplesManifestPath
         Library = "liboboe_samples_jni.so"
         OutRoot = $samplesOutRoot
-    },
-    @{
-        Package = "minimaloboe-rust-jni"
-        Library = "libminimaloboe_rust.so"
-        OutRoot = $minimalOboeOutRoot
-    },
-    @{
-        Package = "openai-realtime-jni"
-        Library = "libopenai_realtime_jni.so"
-        OutRoot = $openAiRealtimeOutRoot
     }
 )
 
@@ -117,7 +113,7 @@ foreach ($target in $targets) {
     foreach ($libraryBuild in $libraryBuilds) {
         Invoke-ExternalCommand `
             $cargoCommand.Source `
-            @("build", "--manifest-path", $manifestPath, "-p", $libraryBuild.Package, "--release", "--target", $target.Triple) `
+            @("build", "--manifest-path", $libraryBuild.Manifest, "-p", $libraryBuild.Package, "--release", "--target", $target.Triple, "--target-dir", $targetDir) `
             "cargo build failed for package '$($libraryBuild.Package)' target '$($target.Triple)'."
 
         $builtLibrary = Join-Path $repoRoot "rust/target/$($target.Triple)/release/$($libraryBuild.Library)"

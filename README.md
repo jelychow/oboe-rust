@@ -10,8 +10,14 @@ The legacy C++ implementation, C++ public headers, CMake/Prefab build scripts, s
 - `rust/oboe-android`: Android AAudio and OpenSL ES backend FFI.
 - `rust/oboe-jni`: JNI handle layer exposed to Java.
 - `android/oboe-wrapper`: Android Java wrapper and smoke tests.
+- `examples/rust`: Android demo JNI crates that exercise the wrapper and apps.
 - `tools/build-rust-android.ps1`: Android ABI build helper for `liboboe_jni.so`.
 - `tools/build-rust-android.sh`: Linux/macOS Android ABI build helper for GitHub Actions and local publishing.
+
+Demo-specific native bridges are intentionally outside the publishable Rust
+workspace. `examples/rust/oboe-samples-jni` backs the sample launcher. The
+preserved `android/oboe-wrapper/openai-realtime-app` demo uses Kotlin/Ktor for
+OpenAI Realtime networking and consumes Oboe through the Android SDK wrapper.
 
 ## Release Scope
 
@@ -22,9 +28,13 @@ release is not a drop-in replacement for the C++ Oboe API.
 ## Build and Test
 
 ```sh
+tools/check-public-surface.sh
 cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+cargo fmt --manifest-path examples/rust/Cargo.toml --all -- --check
 cargo clippy --manifest-path rust/Cargo.toml --workspace --tests -- -D warnings
+cargo clippy --manifest-path examples/rust/Cargo.toml --workspace --tests -- -D warnings
 cargo test --manifest-path rust/Cargo.toml
+cargo test --manifest-path examples/rust/Cargo.toml
 ```
 
 ## Rust Alpha Release Check
@@ -194,6 +204,8 @@ Open the repository root in Android Studio. The root Gradle project exposes:
 
 - `:oboe-wrapper`: Android library module for Java/JNI consumers.
 - `:oboe-smoke-app`: installable smoke app using `implementation project(':oboe-wrapper')`.
+- `:oboe-samples-app`: Android launcher for the Rust sample engines.
+- `:openai-realtime-app`: preserved OpenAI realtime/TTS/ASR demo that uses Ktor for Realtime networking and the Oboe SDK audio API.
 
 To compile the Java wrapper without Gradle:
 
