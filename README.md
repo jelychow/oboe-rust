@@ -80,11 +80,13 @@ Android `.so` files:
 RUST_ANDROID_LIBRARIES=oboe-jni tools/build-rust-android.sh
 ```
 
-Publish locally for validation:
+Publish locally for validation. The release workflow runs the same Maven Local
+publication before it uploads to GitHub Packages:
 
 ```sh
 cd android/oboe-wrapper
-./gradlew :oboe-wrapper:publishReleasePublicationToMavenLocal
+./gradlew :oboe-wrapper:publishReleasePublicationToMavenLocal \
+  -PoboeRust.version=0.1.0-alpha.1
 ```
 
 Publish to GitHub Packages with a token that can write packages:
@@ -92,12 +94,15 @@ Publish to GitHub Packages with a token that can write packages:
 ```sh
 cd android/oboe-wrapper
 GITHUB_ACTOR=<github-user> GITHUB_TOKEN=<token> \
-  ./gradlew :oboe-wrapper:publishReleasePublicationToGitHubPackagesRepository
+  ./gradlew :oboe-wrapper:publishReleasePublicationToGitHubPackagesRepository \
+  -PoboeRust.version=0.1.0-alpha.1
 ```
 
 The repository also includes `.github/workflows/publish-github-packages.yml`,
-which publishes the Android wrapper package from a release, a `v*` tag, or a
-manual workflow dispatch.
+which verifies and publishes the Android wrapper package automatically when a
+GitHub Release is published. Use release tags such as `v0.1.0-alpha.1`; the
+workflow strips the leading `v` and publishes package version `0.1.0-alpha.1`.
+Manual workflow dispatch remains available for retrying a version explicitly.
 
 ## Android Gradle Sync
 

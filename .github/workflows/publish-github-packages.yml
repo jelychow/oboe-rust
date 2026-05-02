@@ -2,22 +2,51 @@ name: Publish GitHub Packages
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Package version to publish when running manually, for example 0.1.0-alpha.1'
+        required: true
+        default: '0.1.0-alpha.1'
   release:
     types: [published]
-  push:
-    tags:
-      - 'v*'
 
-permissions:
-  contents: read
-  packages: write
+concurrency:
+  group: github-packages-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ANDROID_NDK_VERSION: 29.0.14206865
 
 jobs:
-  publish-android-wrapper:
+  verify-android-wrapper-package:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Resolve package version
+        id: version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          MANUAL_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "release" ]]; then
+            version="$RELEASE_TAG"
+          else
+            version="$MANUAL_VERSION"
+          fi
+          version="${version#v}"
+          if [[ -z "$version" ]]; then
+            echo "Package version is empty." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -30,6 +59,21 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+
+      - name: Lint Rust
+        run: cargo clippy --manifest-path rust/Cargo.toml --workspace --tests -- -D warnings
+
+      - name: Test Rust
+        run: cargo test --manifest-path rust/Cargo.toml
+
+      - name: Check wrapper Android targets
+        run: |
+          for target in aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android; do
+            cargo check --manifest-path rust/Cargo.toml -p oboe-jni --target "$target"
+          done
+
       - name: Install Android NDK
         shell: bash
         run: |
@@ -39,17 +83,63 @@ jobs:
             sdkmanager_bin="$(command -v sdkmanager)"
           fi
           yes | "$sdkmanager_bin" --licenses >/dev/null || true
-          "$sdkmanager_bin" "ndk;29.0.14206865"
-          echo "ANDROID_NDK=${ANDROID_HOME}/ndk/29.0.14206865" >> "$GITHUB_ENV"
+          "$sdkmanager_bin" "ndk;${ANDROID_NDK_VERSION}"
+          echo "ANDROID_NDK=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
 
       - name: Build Android JNI libraries
         run: bash tools/build-rust-android.sh
         env:
           RUST_ANDROID_LIBRARIES: oboe-jni
 
+      - name: Validate Maven publication locally
+        working-directory: android/oboe-wrapper
+        run: ./gradlew :oboe-wrapper:publishReleasePublicationToMavenLocal -PoboeRust.version=${{ steps.version.outputs.version }} --no-daemon --console=plain
+
+      - name: Upload wrapper JNI libraries
+        uses: actions/upload-artifact@v4
+        with:
+          name: oboe-wrapper-jni-libs
+          path: android/oboe-wrapper/oboe-wrapper/src/main/jniLibs
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-android-wrapper-package:
+    runs-on: ubuntu-latest
+    needs: verify-android-wrapper-package
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Download wrapper JNI libraries
+        uses: actions/download-artifact@v4
+        with:
+          name: oboe-wrapper-jni-libs
+          path: android/oboe-wrapper/oboe-wrapper/src/main/jniLibs
+
+      - name: Install Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager_bin="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$sdkmanager_bin" ]]; then
+            sdkmanager_bin="$(command -v sdkmanager)"
+          fi
+          yes | "$sdkmanager_bin" --licenses >/dev/null || true
+          "$sdkmanager_bin" "ndk;${ANDROID_NDK_VERSION}"
+          echo "ANDROID_NDK=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
+
       - name: Publish Android wrapper to GitHub Packages
         working-directory: android/oboe-wrapper
-        run: ./gradlew :oboe-wrapper:publishReleasePublicationToGitHubPackagesRepository --no-daemon --console=plain
+        run: ./gradlew :oboe-wrapper:publishReleasePublicationToGitHubPackagesRepository -PoboeRust.version=${{ needs.verify-android-wrapper-package.outputs.version }} --no-daemon --console=plain
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

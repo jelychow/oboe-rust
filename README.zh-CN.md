@@ -73,11 +73,12 @@ dependencies {
 RUST_ANDROID_LIBRARIES=oboe-jni tools/build-rust-android.sh
 ```
 
-本地发布到 Maven Local 做验证：
+本地发布到 Maven Local 做验证。release workflow 上传 GitHub Packages 之前也会先跑同样的 Maven Local 发布验证：
 
 ```sh
 cd android/oboe-wrapper
-./gradlew :oboe-wrapper:publishReleasePublicationToMavenLocal
+./gradlew :oboe-wrapper:publishReleasePublicationToMavenLocal \
+  -PoboeRust.version=0.1.0-alpha.1
 ```
 
 使用有 package 写权限的 token 发布到 GitHub Packages：
@@ -85,10 +86,11 @@ cd android/oboe-wrapper
 ```sh
 cd android/oboe-wrapper
 GITHUB_ACTOR=<github-user> GITHUB_TOKEN=<token> \
-  ./gradlew :oboe-wrapper:publishReleasePublicationToGitHubPackagesRepository
+  ./gradlew :oboe-wrapper:publishReleasePublicationToGitHubPackagesRepository \
+  -PoboeRust.version=0.1.0-alpha.1
 ```
 
-仓库内置 `.github/workflows/publish-github-packages.yml`，支持在 release、`v*` tag 或手动触发 workflow 时发布 Android wrapper package。
+仓库内置 `.github/workflows/publish-github-packages.yml`，会在 GitHub Release 发布时自动验证并发布 Android wrapper package。建议 release tag 使用 `v0.1.0-alpha.1` 这种格式；workflow 会去掉前缀 `v`，最终发布 package version `0.1.0-alpha.1`。手动触发 workflow 仍然可用，适合显式重试某个版本。
 
 ## Android Gradle Sync
 
