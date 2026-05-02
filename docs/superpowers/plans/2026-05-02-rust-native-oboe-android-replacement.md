@@ -1046,7 +1046,7 @@ mod tests {
     use oboe_core::error::Error;
 
     #[test]
-    fn opensl_backend_supports_core_lifecycle_before_real_ffi() {
+    fn opensles_backend_supports_core_lifecycle_before_real_ffi() {
         let mut backend = OpenSLESBackend::open(&StreamBuilder::default()).unwrap();
         assert_eq!(backend.state(), StreamState::Open);
         assert_eq!(backend.request_start(), Ok(()));
@@ -1059,7 +1059,7 @@ mod tests {
     }
 
     #[test]
-    fn opensl_backend_rejects_invalid_builder() {
+    fn opensles_backend_rejects_invalid_builder() {
         let builder = StreamBuilder {
             channel_count: 0,
             ..StreamBuilder::default()
@@ -1096,7 +1096,7 @@ Run:
 
 ```bash
 cargo test --manifest-path rust/Cargo.toml -p oboe-android aaudio_backend
-cargo test --manifest-path rust/Cargo.toml -p oboe-android opensl_backend
+cargo test --manifest-path rust/Cargo.toml -p oboe-android opensles_backend
 ```
 
 Expected: both targeted test groups pass.
@@ -1110,7 +1110,7 @@ git commit -m "Create Rust backend owners for AAudio and OpenSL" \
   -m "Constraint: The skeleton intentionally avoids C++ src wrappers" \
   -m "Confidence: medium" \
   -m "Scope-risk: moderate" \
-  -m "Tested: cargo test --manifest-path rust/Cargo.toml -p oboe-android aaudio_backend; cargo test --manifest-path rust/Cargo.toml -p oboe-android opensl_backend" \
+  -m "Tested: cargo test --manifest-path rust/Cargo.toml -p oboe-android aaudio_backend; cargo test --manifest-path rust/Cargo.toml -p oboe-android opensles_backend" \
   -m "Not-tested: Real Android NDK FFI"
 ```
 

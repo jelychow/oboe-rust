@@ -39,7 +39,7 @@ mod tests {
     use oboe_core::error::Error;
 
     #[test]
-    fn opensl_backend_supports_core_lifecycle_before_real_ffi() {
+    fn opensles_backend_supports_core_lifecycle_before_real_ffi() {
         let mut backend = OpenSLESBackend::open(&StreamBuilder::default()).unwrap();
         assert_eq!(backend.state(), StreamState::Open);
         assert_eq!(backend.request_start(), Ok(()));
@@ -52,7 +52,7 @@ mod tests {
     }
 
     #[test]
-    fn opensl_backend_rejects_invalid_builder() {
+    fn opensles_backend_rejects_invalid_builder() {
         let builder = StreamBuilder {
             channel_count: 0,
             ..StreamBuilder::default()
