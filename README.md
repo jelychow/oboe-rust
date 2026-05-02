@@ -2,7 +2,7 @@
 
 This repository has been reduced to the Rust-native Android audio path.
 
-The legacy C++ implementation, C++ public headers, CMake build, sample apps, and C++ test runner have been removed. The supported implementation is now:
+The legacy C++ implementation, C++ public headers, CMake/Prefab build scripts, sample apps, and C++ test runner have been removed. The supported implementation is now:
 
 - `rust/oboe-core`: backend-neutral stream, builder, FIFO, format, resampler, callback, and extension state.
 - `rust/oboe-android`: Android AAudio and OpenSL ES backend FFI.

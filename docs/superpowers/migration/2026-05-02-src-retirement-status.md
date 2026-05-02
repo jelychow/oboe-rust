@@ -11,6 +11,8 @@ Removed paths:
 - `tests`
 - `prefab`
 - root `CMakeLists.txt`
+- `build_all_android.sh`
+- `prefab_build.sh`
 - `rust/oboe_rust_core`
 
 Remaining supported paths:

@@ -10,4 +10,4 @@ The active repository surface is Rust plus the Android Java/JNI wrapper.
 - `../android/oboe-wrapper`: Java wrapper project and smoke tests.
 - `../tools/build-rust-android.ps1`: Android ABI build helper.
 
-Legacy C++ headers, implementation, sample apps, CMake build files, Doxygen workflow, and C++ test runner were removed during the Rust-native migration.
+Legacy C++ headers, implementation, sample apps, CMake/Prefab build files, Doxygen workflow, and C++ test runner were removed during the Rust-native migration.
