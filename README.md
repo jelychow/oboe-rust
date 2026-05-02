@@ -24,8 +24,21 @@ To compile the Java wrapper without Gradle:
 javac.exe -Xlint:all -d build\javac-oboe-wrapper android\oboe-wrapper\oboe-wrapper\src\main\java\com\google\oboe\*.java
 ```
 
-To build Android JNI libraries, provide an Android NDK path:
+To build Android JNI libraries, provide an Android NDK path. The Rust AAudio backend
+links against `libaaudio`, so Android API 26 is the default native build baseline.
 
 ```powershell
 .\tools\build-rust-android.ps1 -AndroidNdk C:\path\to\Android\Sdk\ndk\<version>
+```
+
+To build a signed smoke-test APK without Gradle:
+
+```powershell
+.\tools\build-smoke-apk.ps1 -AndroidSdk C:\path\to\Android\Sdk
+```
+
+To install it on a connected device or emulator:
+
+```powershell
+.\tools\build-smoke-apk.ps1 -AndroidSdk C:\path\to\Android\Sdk -Install
 ```

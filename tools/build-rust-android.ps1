@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$AndroidNdk,
 
-    [string]$ApiLevel = "21"
+    [string]$ApiLevel = "26"
 )
 
 $ErrorActionPreference = "Stop"

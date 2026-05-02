@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = 'RustNativeOboeWrapper'
 include ':oboe-wrapper'
+include ':oboe-smoke-app'
