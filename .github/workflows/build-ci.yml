@@ -30,7 +30,7 @@ jobs:
           cargo fmt --manifest-path examples/rust/Cargo.toml --all -- --check
 
       - name: Check public project surface
-        run: tools/check-public-surface.sh
+        run: bash tools/check-public-surface.sh
 
       - name: Lint Rust
         run: |
