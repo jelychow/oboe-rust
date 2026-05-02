@@ -80,6 +80,7 @@ New-Item -ItemType Directory -Force -Path $classesDir, $dexDir, $packagingDir | 
 $manualManifest = Join-Path $buildRoot "AndroidManifest.xml"
 $manifestText = Get-Content -Raw -LiteralPath $appManifest
 $manifestText = $manifestText -replace '<manifest xmlns:android="http://schemas.android.com/apk/res/android">', '<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.google.oboe.smoke">'
+$manifestText = $manifestText -replace '(<application\s+)', '$1android:extractNativeLibs="true" '
 Set-Content -LiteralPath $manualManifest -Value $manifestText -Encoding UTF8
 
 $javaSources = @(

@@ -1,0 +1,23 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'RustNativeOboe'
+
+include ':oboe-wrapper'
+project(':oboe-wrapper').projectDir = file('android/oboe-wrapper/oboe-wrapper')
+
+include ':oboe-smoke-app'
+project(':oboe-smoke-app').projectDir = file('android/oboe-wrapper/oboe-smoke-app')

@@ -18,6 +18,13 @@ cargo clippy --manifest-path rust/Cargo.toml --workspace --tests -- -D warnings
 cargo test --manifest-path rust/Cargo.toml
 ```
 
+## Android Gradle Sync
+
+Open the repository root in Android Studio. The root Gradle project exposes:
+
+- `:oboe-wrapper`: Android library module for Java/JNI consumers.
+- `:oboe-smoke-app`: installable smoke app using `implementation project(':oboe-wrapper')`.
+
 To compile the Java wrapper without Gradle:
 
 ```powershell
