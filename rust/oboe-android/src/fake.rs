@@ -31,6 +31,17 @@ impl AudioBackend for FakeBackend {
     fn state(&self) -> StreamState {
         self.core.state()
     }
+
+    fn write_f32(&mut self, audio: &[f32], _timeout_nanos: i64) -> Result<i32> {
+        Ok(audio.len() as i32)
+    }
+
+    fn read_f32(&mut self, audio: &mut [f32], _timeout_nanos: i64) -> Result<i32> {
+        for sample in audio.iter_mut() {
+            *sample = 0.0;
+        }
+        Ok(audio.len() as i32)
+    }
 }
 
 #[cfg(test)]
@@ -61,5 +72,14 @@ mod tests {
             FakeBackend::open(&builder).unwrap_err(),
             Error::InvalidArgument
         );
+    }
+
+    #[test]
+    fn fake_backend_reads_and_writes_float_buffers() {
+        let mut backend = FakeBackend::open(&StreamBuilder::default()).unwrap();
+        assert_eq!(backend.write_f32(&[0.0, 0.5], 0), Ok(2));
+        let mut audio = [1.0, 1.0, 1.0];
+        assert_eq!(backend.read_f32(&mut audio, 0), Ok(3));
+        assert_eq!(audio, [0.0, 0.0, 0.0]);
     }
 }

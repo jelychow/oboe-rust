@@ -10,4 +10,6 @@ pub trait AudioBackend {
     fn request_stop(&mut self) -> Result<()>;
     fn close(&mut self) -> Result<()>;
     fn state(&self) -> StreamState;
+    fn write_f32(&mut self, audio: &[f32], timeout_nanos: i64) -> Result<i32>;
+    fn read_f32(&mut self, audio: &mut [f32], timeout_nanos: i64) -> Result<i32>;
 }
