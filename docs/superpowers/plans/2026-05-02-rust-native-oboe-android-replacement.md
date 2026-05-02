@@ -82,6 +82,7 @@ Write `rust/Cargo.toml`:
 ```toml
 [workspace]
 resolver = "2"
+exclude = ["oboe_rust_core"]
 members = [
     "oboe-core",
     "oboe-android",
@@ -158,7 +159,6 @@ version.workspace = true
 
 [dependencies]
 oboe-android = { path = "../oboe-android" }
-oboe-core = { path = "../oboe-core" }
 
 [lib]
 crate-type = ["cdylib"]
@@ -171,9 +171,16 @@ Write `rust/oboe-jni/src/lib.rs`:
 
 #[allow(non_camel_case_types)]
 type jint = i32;
+#[allow(non_camel_case_types)]
+type jclass = *mut core::ffi::c_void;
+#[allow(non_camel_case_types)]
+type JNIEnv = *mut core::ffi::c_void;
 
 #[no_mangle]
-pub extern "system" fn Java_com_google_oboe_AudioStream_nativeVersionCode() -> jint {
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeVersionCode(
+    _env: JNIEnv,
+    _class: jclass,
+) -> jint {
     oboe_android::version_code()
 }
 ```
@@ -1038,10 +1045,30 @@ git commit -m "Create Rust backend owners for AAudio and OpenSL" \
 ## Task 6: JNI Handle API
 
 **Files:**
+- Modify: `rust/oboe-jni/Cargo.toml`
 - Modify: `rust/oboe-jni/src/lib.rs`
 - Modify: `rust/oboe-android/src/lib.rs`
 
-- [ ] **Step 1: Replace version-only JNI with handle functions**
+- [ ] **Step 1: Restore the direct core dependency before JNI imports core types**
+
+Write `rust/oboe-jni/Cargo.toml`:
+
+```toml
+[package]
+name = "oboe-jni"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+oboe-android = { path = "../oboe-android" }
+oboe-core = { path = "../oboe-core" }
+
+[lib]
+crate-type = ["cdylib"]
+```
+
+- [ ] **Step 2: Replace version-only JNI with handle functions**
 
 Write `rust/oboe-jni/src/lib.rs`:
 
@@ -1108,7 +1135,10 @@ impl NativeStream {
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_google_oboe_AudioStream_nativeVersionCode() -> jint {
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeVersionCode(
+    _env: JNIEnv,
+    _class: jclass,
+) -> jint {
     1
 }
 

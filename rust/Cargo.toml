@@ -1,5 +1,6 @@
 [workspace]
 resolver = "2"
+exclude = ["oboe_rust_core"]
 members = [
     "oboe-core",
     "oboe-android",
