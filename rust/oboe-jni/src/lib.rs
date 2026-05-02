@@ -2,7 +2,7 @@
 
 use core::ffi::c_void;
 use std::collections::HashMap;
-use std::sync::{Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use oboe_android::aaudio::AAudioBackend;
 use oboe_android::backend::AudioBackend;
@@ -13,7 +13,7 @@ use oboe_core::extensions::{
     StretchMode,
 };
 use oboe_core::stream::StreamState;
-use oboe_core::types::AudioApi;
+use oboe_core::types::{AudioApi, Direction, Format, PerformanceMode, SharingMode};
 
 #[allow(non_camel_case_types)]
 type jboolean = u8;
@@ -36,13 +36,8 @@ enum NativeStream {
 }
 
 impl NativeStream {
-    fn open(api: AudioApi) -> Option<Self> {
-        let builder = StreamBuilder {
-            api,
-            ..StreamBuilder::default()
-        };
-
-        let stream = match api {
+    fn open(builder: StreamBuilder) -> Option<Self> {
+        let stream = match builder.api {
             AudioApi::AAudio | AudioApi::Unspecified => {
                 AAudioBackend::open(&builder).map(Self::AAudio)
             }
@@ -134,7 +129,7 @@ impl NativeStream {
 #[derive(Default)]
 struct HandleRegistry {
     next_handle: jlong,
-    streams: HashMap<jlong, NativeStream>,
+    streams: HashMap<jlong, Arc<Mutex<NativeStream>>>,
 }
 
 impl HandleRegistry {
@@ -150,7 +145,7 @@ impl HandleRegistry {
         }
 
         self.next_handle = if handle == jlong::MAX { 1 } else { handle + 1 };
-        self.streams.insert(handle, stream);
+        self.streams.insert(handle, Arc::new(Mutex::new(stream)));
         handle
     }
 }
@@ -179,6 +174,42 @@ fn api_from_jint(api: jint) -> AudioApi {
         1 => AudioApi::AAudio,
         2 => AudioApi::OpenSLES,
         _ => AudioApi::Unspecified,
+    }
+}
+
+fn direction_from_jint(direction: jint) -> Option<Direction> {
+    match direction {
+        0 => Some(Direction::Input),
+        1 => Some(Direction::Output),
+        _ => None,
+    }
+}
+
+fn sharing_mode_from_jint(sharing_mode: jint) -> Option<SharingMode> {
+    match sharing_mode {
+        0 => Some(SharingMode::Shared),
+        1 => Some(SharingMode::Exclusive),
+        _ => None,
+    }
+}
+
+fn performance_mode_from_jint(performance_mode: jint) -> Option<PerformanceMode> {
+    match performance_mode {
+        0 => Some(PerformanceMode::None),
+        1 => Some(PerformanceMode::PowerSaving),
+        2 => Some(PerformanceMode::LowLatency),
+        _ => None,
+    }
+}
+
+fn format_from_jint(format: jint) -> Option<Format> {
+    match format {
+        0 => Some(Format::Unspecified),
+        1 => Some(Format::I16),
+        2 => Some(Format::I24),
+        3 => Some(Format::I32),
+        4 => Some(Format::Float),
+        _ => None,
     }
 }
 
@@ -227,22 +258,34 @@ fn stream_state_code(state: StreamState) -> jint {
     }
 }
 
-fn with_stream_mut(handle: jlong, f: impl FnOnce(&mut NativeStream) -> jint) -> jint {
+fn stream_for_handle(handle: jlong) -> Option<Arc<Mutex<NativeStream>>> {
     if handle == 0 {
-        return -1;
+        return None;
     }
+    let registry = lock_registry();
+    registry.streams.get(&handle).cloned()
+}
 
-    let mut registry = lock_registry();
-    registry.streams.get_mut(&handle).map(f).unwrap_or(-1)
+fn with_stream_mut(handle: jlong, f: impl FnOnce(&mut NativeStream) -> jint) -> jint {
+    stream_for_handle(handle)
+        .map(|stream| {
+            let mut stream = stream
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            f(&mut stream)
+        })
+        .unwrap_or(-1)
 }
 
 fn with_stream(handle: jlong, f: impl FnOnce(&NativeStream) -> jint) -> jint {
-    if handle == 0 {
-        return -1;
-    }
-
-    let registry = lock_registry();
-    registry.streams.get(&handle).map(f).unwrap_or(-1)
+    stream_for_handle(handle)
+        .map(|stream| {
+            let stream = stream
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            f(&stream)
+        })
+        .unwrap_or(-1)
 }
 
 #[no_mangle]
@@ -258,11 +301,43 @@ pub extern "system" fn Java_com_google_oboe_AudioStream_nativeOpen(
     _env: JNIEnv,
     _class: jclass,
     api: jint,
+    direction: jint,
+    sharing_mode: jint,
+    performance_mode: jint,
+    sample_rate: jint,
+    channel_count: jint,
+    format: jint,
+    frames_per_callback: jint,
+    buffer_capacity_in_frames: jint,
 ) -> jlong {
     let requested_api = api_from_jint(api);
     let selected_api = selected_backend_api(requested_api);
+    let builder = StreamBuilder {
+        api: selected_api,
+        direction: match direction_from_jint(direction) {
+            Some(direction) => direction,
+            None => return 0,
+        },
+        sharing_mode: match sharing_mode_from_jint(sharing_mode) {
+            Some(sharing_mode) => sharing_mode,
+            None => return 0,
+        },
+        performance_mode: match performance_mode_from_jint(performance_mode) {
+            Some(performance_mode) => performance_mode,
+            None => return 0,
+        },
+        sample_rate,
+        channel_count,
+        format: match format_from_jint(format) {
+            Some(format) => format,
+            None => return 0,
+        },
+        frames_per_callback,
+        buffer_capacity_in_frames,
+        ..StreamBuilder::default()
+    };
 
-    NativeStream::open(selected_api)
+    NativeStream::open(builder)
         .map(|stream| lock_registry().insert(stream))
         .unwrap_or(0)
 }
@@ -400,13 +475,36 @@ pub extern "system" fn Java_com_google_oboe_AudioStream_nativeClose(
         registry.streams.remove(&handle)
     };
 
-    stream.map(|mut stream| stream.close()).unwrap_or(-1)
+    stream
+        .map(|stream| {
+            let mut stream = stream
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            stream.close()
+        })
+        .unwrap_or(-1)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use core::ptr::null_mut;
+
+    fn native_open(api: jint) -> jlong {
+        Java_com_google_oboe_AudioStream_nativeOpen(
+            null_mut(),
+            null_mut(),
+            api,
+            1,
+            0,
+            0,
+            0,
+            2,
+            4,
+            0,
+            0,
+        )
+    }
 
     #[test]
     fn version_code_matches_android_crate() {
@@ -501,12 +599,13 @@ mod tests {
 
     #[test]
     fn unspecified_api_opens_aaudio_handle_and_runs_lifecycle() {
-        let handle = Java_com_google_oboe_AudioStream_nativeOpen(null_mut(), null_mut(), 99);
+        let handle = native_open(99);
         assert_ne!(handle, 0);
 
         {
             let registry = lock_registry();
             let stream = registry.streams.get(&handle).unwrap();
+            let stream = stream.lock().unwrap();
             assert_eq!(stream.backend_api(), AudioApi::AAudio);
         }
 
@@ -538,7 +637,7 @@ mod tests {
 
     #[test]
     fn closed_handles_are_removed_and_stay_invalid() {
-        let handle = Java_com_google_oboe_AudioStream_nativeOpen(null_mut(), null_mut(), 1);
+        let handle = native_open(1);
         assert_ne!(handle, 0);
         assert_eq!(
             Java_com_google_oboe_AudioStream_nativeClose(null_mut(), null_mut(), handle),
@@ -564,12 +663,13 @@ mod tests {
 
     #[test]
     fn opensles_api_selects_opensles_backend() {
-        let handle = Java_com_google_oboe_AudioStream_nativeOpen(null_mut(), null_mut(), 2);
+        let handle = native_open(2);
         assert_ne!(handle, 0);
 
         {
             let registry = lock_registry();
             let stream = registry.streams.get(&handle).unwrap();
+            let stream = stream.lock().unwrap();
             assert_eq!(stream.backend_api(), AudioApi::OpenSLES);
         }
 
@@ -581,7 +681,7 @@ mod tests {
 
     #[test]
     fn aaudio_handle_accepts_callback_and_extension_paths() {
-        let handle = Java_com_google_oboe_AudioStream_nativeOpen(null_mut(), null_mut(), 1);
+        let handle = native_open(1);
         assert_ne!(handle, 0);
 
         assert_eq!(
@@ -655,7 +755,7 @@ mod tests {
 
     #[test]
     fn opensles_handle_keeps_callback_path_but_rejects_aaudio_only_extensions() {
-        let handle = Java_com_google_oboe_AudioStream_nativeOpen(null_mut(), null_mut(), 2);
+        let handle = native_open(2);
         assert_ne!(handle, 0);
 
         assert_eq!(
@@ -698,5 +798,24 @@ mod tests {
             Java_com_google_oboe_AudioStream_nativeClose(null_mut(), null_mut(), handle),
             0
         );
+    }
+
+    #[test]
+    fn native_open_rejects_invalid_builder_config() {
+        let handle = Java_com_google_oboe_AudioStream_nativeOpen(
+            null_mut(),
+            null_mut(),
+            1,
+            1,
+            0,
+            2,
+            24_000,
+            0,
+            4,
+            0,
+            0,
+        );
+
+        assert_eq!(handle, 0);
     }
 }

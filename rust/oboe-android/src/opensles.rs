@@ -15,6 +15,9 @@ pub struct OpenSLESBackend {
     platform: platform::OpenSLESPlatformStream,
 }
 
+// SAFETY: OpenSLESBackend owns the engine/player objects and exposes native
+// operations only through &mut self. The wrapper does not register callbacks,
+// so moving ownership across threads cannot create concurrent Rust access.
 #[cfg(target_os = "android")]
 unsafe impl Send for OpenSLESBackend {}
 
@@ -294,6 +297,9 @@ mod platform {
         }
     }
 
+    // SAFETY: The OpenSL ES object/interface handles are exclusively owned by
+    // this stream, destroyed in Drop, and accessed only through &mut self. This
+    // wrapper does not install OpenSL callbacks that could race with the owner.
     unsafe impl Send for OpenSLESPlatformStream {}
 
     impl OpenSLESPlatformStream {

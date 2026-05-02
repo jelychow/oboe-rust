@@ -18,7 +18,7 @@ use oboe_android::backend::AudioBackend;
 use oboe_core::builder::StreamBuilder;
 use oboe_core::types::{AudioApi, Direction, Format, PerformanceMode, SharingMode};
 use serde_json::{json, Value};
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, error::TrySendError};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::header::{AUTHORIZATION, CONTENT_TYPE};
@@ -37,6 +37,7 @@ const MAX_TRANSCRIPT_CHARS: usize = 8_192;
 const INPUT_LOG_INTERVAL_CHUNKS: u64 = 50;
 const OUTPUT_LOG_INTERVAL_CHUNKS: u64 = 20;
 const WAV_HEADER_BYTES: usize = 44;
+const MIC_AUDIO_QUEUE_CAPACITY: usize = 8;
 
 type AppResult<T> = Result<T, String>;
 
@@ -80,6 +81,8 @@ struct StatusSnapshot {
     last_error: String,
     input_chunks_sent: u64,
     input_frames_sent: u64,
+    input_chunks_dropped: u64,
+    input_frames_dropped: u64,
     output_chunks_played: u64,
     output_frames_played: u64,
     input_level: f32,
@@ -94,6 +97,8 @@ impl Default for StatusSnapshot {
             last_error: String::new(),
             input_chunks_sent: 0,
             input_frames_sent: 0,
+            input_chunks_dropped: 0,
+            input_frames_dropped: 0,
             output_chunks_played: 0,
             output_frames_played: 0,
             input_level: 0.0,
@@ -104,7 +109,19 @@ impl Default for StatusSnapshot {
 
 type SharedStatus = Arc<Mutex<StatusSnapshot>>;
 
+struct StatsSummary {
+    input_chunks: u64,
+    input_frames: u64,
+    dropped_input_chunks: u64,
+    dropped_input_frames: u64,
+    output_chunks: u64,
+    output_frames: u64,
+    input_level: f32,
+    output_level: f32,
+}
+
 struct RunningSession {
+    id: u64,
     stop: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
 }
@@ -127,11 +144,13 @@ impl Drop for RunningSession {
 #[derive(Default)]
 struct RealtimeController {
     session: Option<RunningSession>,
+    next_session_id: u64,
     status: SharedStatus,
 }
 
 impl RealtimeController {
     fn start(&mut self, config: RealtimeConfig) -> jint {
+        self.reap_finished_session();
         if self.session.is_some() {
             set_status(&self.status, "Already running");
             return 0;
@@ -142,6 +161,7 @@ impl RealtimeController {
         set_status(&self.status, "Connecting");
 
         let status = self.status.clone();
+        let session_id = self.allocate_session_id();
         let stop = Arc::new(AtomicBool::new(false));
         let thread_stop = stop.clone();
         let handle = thread::spawn(move || {
@@ -156,9 +176,11 @@ impl RealtimeController {
             } else {
                 android_log::info("session ended");
             }
+            clear_finished_session(session_id);
         });
 
         self.session = Some(RunningSession {
+            id: session_id,
             stop,
             handle: Some(handle),
         });
@@ -166,6 +188,7 @@ impl RealtimeController {
     }
 
     fn stop(&mut self) -> jint {
+        self.reap_finished_session();
         if let Some(session) = self.session.take() {
             android_log::info("stop requested");
             set_status(&self.status, "Stopping");
@@ -175,16 +198,39 @@ impl RealtimeController {
         0
     }
 
-    fn status(&self) -> String {
+    fn status(&mut self) -> String {
+        self.reap_finished_session();
         lock_status(&self.status).status.clone()
     }
 
-    fn transcript(&self) -> String {
+    fn transcript(&mut self) -> String {
+        self.reap_finished_session();
         lock_status(&self.status).transcript.clone()
     }
 
-    fn last_error(&self) -> String {
+    fn last_error(&mut self) -> String {
+        self.reap_finished_session();
         lock_status(&self.status).last_error.clone()
+    }
+
+    fn allocate_session_id(&mut self) -> u64 {
+        self.next_session_id = self.next_session_id.checked_add(1).unwrap_or(1);
+        if self.next_session_id == 0 {
+            self.next_session_id = 1;
+        }
+        self.next_session_id
+    }
+
+    fn reap_finished_session(&mut self) -> bool {
+        let finished = self
+            .session
+            .as_ref()
+            .and_then(|session| session.handle.as_ref())
+            .is_some_and(JoinHandle::is_finished);
+        if finished {
+            self.session.take();
+        }
+        finished
     }
 }
 
@@ -197,6 +243,17 @@ fn lock_controller() -> MutexGuard<'static, RealtimeController> {
     controller()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn clear_finished_session(session_id: u64) {
+    let mut controller = lock_controller();
+    let is_current = controller
+        .session
+        .as_ref()
+        .is_some_and(|session| session.id == session_id);
+    if is_current {
+        controller.session.take();
+    }
 }
 
 struct RunningRecording {
@@ -365,6 +422,8 @@ fn reset_status(status: &SharedStatus) {
         last_error: String::new(),
         input_chunks_sent: 0,
         input_frames_sent: 0,
+        input_chunks_dropped: 0,
+        input_frames_dropped: 0,
         output_chunks_played: 0,
         output_frames_played: 0,
         input_level: 0.0,
@@ -410,6 +469,13 @@ fn record_input_frames(status: &SharedStatus, frames: usize, level: f32) -> (u64
     snapshot.input_frames_sent = snapshot.input_frames_sent.saturating_add(frames as u64);
     snapshot.input_level = level;
     (snapshot.input_chunks_sent, snapshot.input_frames_sent)
+}
+
+fn record_dropped_input_frames(status: &SharedStatus, frames: usize) -> (u64, u64) {
+    let mut snapshot = lock_status(status);
+    snapshot.input_chunks_dropped = snapshot.input_chunks_dropped.saturating_add(1);
+    snapshot.input_frames_dropped = snapshot.input_frames_dropped.saturating_add(frames as u64);
+    (snapshot.input_chunks_dropped, snapshot.input_frames_dropped)
 }
 
 fn record_output_frames(status: &SharedStatus, frames: usize, level: f32) -> (u64, u64) {
@@ -460,41 +526,43 @@ fn native_audio_stats_snapshot() -> NativeAudioStats {
 
 fn combined_stats() -> String {
     let realtime = {
-        let controller = lock_controller();
+        let mut controller = lock_controller();
+        controller.reap_finished_session();
         let snapshot = lock_status(&controller.status).clone();
         snapshot
     };
     let native = native_audio_stats_snapshot();
-    format_stats(
-        realtime
+    format_stats(StatsSummary {
+        input_chunks: realtime
             .input_chunks_sent
             .saturating_add(native.input_chunks),
-        realtime
+        input_frames: realtime
             .input_frames_sent
             .saturating_add(native.input_frames),
-        realtime
+        dropped_input_chunks: realtime.input_chunks_dropped,
+        dropped_input_frames: realtime.input_frames_dropped,
+        output_chunks: realtime
             .output_chunks_played
             .saturating_add(native.output_chunks),
-        realtime
+        output_frames: realtime
             .output_frames_played
             .saturating_add(native.output_frames),
-        realtime.input_level.max(native.input_level),
-        realtime.output_level.max(native.output_level),
-    )
+        input_level: realtime.input_level.max(native.input_level),
+        output_level: realtime.output_level.max(native.output_level),
+    })
 }
 
-fn format_stats(
-    input_chunks: u64,
-    input_frames: u64,
-    output_chunks: u64,
-    output_frames: u64,
-    input_level: f32,
-    output_level: f32,
-) -> String {
+fn format_stats(stats: StatsSummary) -> String {
     format!(
-        "Mic sent: {input_chunks} chunks / {input_frames} frames. Output played: {output_chunks} chunks / {output_frames} frames. Levels: mic {:.3}, output {:.3}.",
-        input_level.clamp(0.0, 1.0),
-        output_level.clamp(0.0, 1.0)
+        "Mic sent: {} chunks / {} frames. Mic dropped: {} chunks / {} frames. Output played: {} chunks / {} frames. Levels: mic {:.3}, output {:.3}.",
+        stats.input_chunks,
+        stats.input_frames,
+        stats.dropped_input_chunks,
+        stats.dropped_input_frames,
+        stats.output_chunks,
+        stats.output_frames,
+        stats.input_level.clamp(0.0, 1.0),
+        stats.output_level.clamp(0.0, 1.0)
     )
 }
 
@@ -555,7 +623,7 @@ async fn run_realtime_session(
     android_log::info("session.update sent");
 
     let mut output = RealtimeAudioOutput::open()?;
-    let (audio_tx, mut audio_rx) = mpsc::unbounded_channel::<Vec<f32>>();
+    let (audio_tx, mut audio_rx) = mpsc::channel::<Vec<f32>>(MIC_AUDIO_QUEUE_CAPACITY);
     let mic = start_microphone_thread(audio_tx, stop.clone(), status.clone());
 
     loop {
@@ -654,7 +722,7 @@ pub fn build_audio_append_event(audio: &[f32]) -> Value {
 }
 
 fn start_microphone_thread(
-    audio_tx: mpsc::UnboundedSender<Vec<f32>>,
+    audio_tx: mpsc::Sender<Vec<f32>>,
     stop: Arc<AtomicBool>,
     status: SharedStatus,
 ) -> JoinHandle<()> {
@@ -672,7 +740,9 @@ fn start_microphone_thread(
         while !stop.load(Ordering::Relaxed) {
             match input.read(&mut buffer) {
                 Ok(read) if read > 0 => {
-                    if audio_tx.send(buffer[..read].to_vec()).is_err() {
+                    if !send_microphone_audio(&audio_tx, &status, &buffer[..read])
+                        && audio_tx.is_closed()
+                    {
                         break;
                     }
                 }
@@ -686,6 +756,26 @@ fn start_microphone_thread(
         }
         input.close();
     })
+}
+
+fn send_microphone_audio(
+    audio_tx: &mpsc::Sender<Vec<f32>>,
+    status: &SharedStatus,
+    audio: &[f32],
+) -> bool {
+    match audio_tx.try_send(audio.to_vec()) {
+        Ok(()) => true,
+        Err(TrySendError::Full(audio)) => {
+            let (chunks, frames) = record_dropped_input_frames(status, audio.len());
+            if chunks == 1 || chunks % INPUT_LOG_INTERVAL_CHUNKS == 0 {
+                android_log::info(&format!(
+                    "microphone audio dropped chunks={chunks} frames={frames}"
+                ));
+            }
+            false
+        }
+        Err(TrySendError::Closed(_)) => false,
+    }
 }
 
 struct RealtimeAudioInput {
@@ -753,15 +843,19 @@ impl RealtimeAudioOutput {
         Ok(Self { stream })
     }
 
-    fn write_pcm16_le(&mut self, audio: &[u8]) -> AppResult<()> {
+    fn write_pcm16_le(&mut self, audio: &[u8]) -> AppResult<usize> {
         let samples = pcm16_le_to_f32(audio);
         if samples.is_empty() {
-            return Ok(());
+            return Ok(0);
         }
-        self.stream
-            .write_f32(&samples, IO_TIMEOUT_NANOS)
-            .map(|_| ())
-            .map_err(|error| format!("Failed to write assistant audio: {error:?}"))
+        write_all_f32(samples.len(), |offset| {
+            let written = self
+                .stream
+                .write_f32(&samples[offset..], IO_TIMEOUT_NANOS)
+                .map_err(|error| format!("Failed to write assistant audio: {error:?}"))?;
+            usize::try_from(written)
+                .map_err(|_| format!("AAudio reported negative written sample count: {written}"))
+        })
     }
 
     fn close(&mut self) {
@@ -780,9 +874,11 @@ fn play_pcm16_with_oboe(
         if stop.load(Ordering::Relaxed) {
             break;
         }
-        output.write_pcm16_le(chunk)?;
-        let frames = chunk.len() / 2;
-        record_native_output_frames(&stats, frames, audio_level_pcm16_le(chunk));
+        let written_samples = output.write_pcm16_le(chunk)?;
+        let written_bytes = written_samples.saturating_mul(2).min(chunk.len());
+        let written_audio = &chunk[..written_bytes];
+        let frames = written_samples / CHANNEL_COUNT as usize;
+        record_native_output_frames(&stats, frames, audio_level_pcm16_le(written_audio));
     }
     output.close();
     Ok(())
@@ -903,9 +999,11 @@ fn handle_server_event(
                 let bytes = STANDARD
                     .decode(delta)
                     .map_err(|error| format!("Invalid assistant audio chunk: {error}"))?;
-                let frames = bytes.len() / 2;
-                let level = audio_level_pcm16_le(&bytes);
-                output.write_pcm16_le(&bytes)?;
+                let written_samples = output.write_pcm16_le(&bytes)?;
+                let written_bytes = written_samples.saturating_mul(2).min(bytes.len());
+                let written_audio = &bytes[..written_bytes];
+                let frames = written_samples / CHANNEL_COUNT as usize;
+                let level = audio_level_pcm16_le(written_audio);
                 let (chunks, total_frames) = record_output_frames(status, frames, level);
                 if chunks == 1 || chunks % OUTPUT_LOG_INTERVAL_CHUNKS == 0 {
                     android_log::info(&format!(
@@ -1018,6 +1116,27 @@ pub fn audio_level_f32(audio: &[f32]) -> f32 {
 pub fn audio_level_pcm16_le(audio: &[u8]) -> f32 {
     let samples = pcm16_le_to_f32(audio);
     audio_level_f32(&samples)
+}
+
+fn write_all_f32(
+    total_samples: usize,
+    mut write_from_offset: impl FnMut(usize) -> AppResult<usize>,
+) -> AppResult<usize> {
+    let mut written_total = 0;
+    while written_total < total_samples {
+        let written = write_from_offset(written_total)?;
+        if written == 0 {
+            return Err("AAudio wrote zero samples before the buffer completed.".to_owned());
+        }
+        let remaining = total_samples - written_total;
+        if written > remaining {
+            return Err(format!(
+                "AAudio reported {written} written samples with only {remaining} samples remaining."
+            ));
+        }
+        written_total += written;
+    }
+    Ok(written_total)
 }
 
 fn jstring_to_string(env: &mut JNIEnv<'_>, value: JString<'_>) -> AppResult<String> {
@@ -1300,5 +1419,60 @@ mod tests {
             "Incorrect API key provided: {fake_key}. Check {fake_project_key}"
         ));
         assert_eq!(redacted, "Incorrect API key provided: sk-***. Check sk-***");
+    }
+
+    #[test]
+    fn finished_realtime_session_is_reaped_before_restart_checks() {
+        let mut controller = RealtimeController {
+            session: Some(RunningSession {
+                id: 7,
+                stop: Arc::new(AtomicBool::new(false)),
+                handle: Some(thread::spawn(|| {})),
+            }),
+            ..RealtimeController::default()
+        };
+
+        while controller
+            .session
+            .as_ref()
+            .and_then(|session| session.handle.as_ref())
+            .is_some_and(|handle| !handle.is_finished())
+        {
+            thread::sleep(Duration::from_millis(1));
+        }
+
+        assert!(controller.reap_finished_session());
+        assert!(controller.session.is_none());
+    }
+
+    #[test]
+    fn microphone_queue_reports_dropped_audio_when_full() {
+        let status = SharedStatus::default();
+        let (audio_tx, mut audio_rx) = mpsc::channel::<Vec<f32>>(1);
+        assert!(send_microphone_audio(&audio_tx, &status, &[0.25, -0.25]));
+        assert!(!send_microphone_audio(&audio_tx, &status, &[0.5, -0.5]));
+
+        let snapshot = lock_status(&status);
+        assert_eq!(snapshot.input_chunks_dropped, 1);
+        assert_eq!(snapshot.input_frames_dropped, 2);
+        drop(snapshot);
+        assert_eq!(audio_rx.try_recv().unwrap(), vec![0.25, -0.25]);
+    }
+
+    #[test]
+    fn write_all_f32_retries_partial_writes() {
+        let mut writes = Vec::new();
+        let samples = [0.0, 0.1, 0.2, 0.3, 0.4];
+
+        let written = write_all_f32(samples.len(), |offset| {
+            let remaining = samples.len() - offset;
+            let chunk = remaining.min(2);
+            writes.push((offset, chunk));
+            Ok(chunk)
+        })
+        .unwrap();
+
+        assert_eq!(written, samples.len());
+        assert_eq!(writes, vec![(0, 2), (2, 2), (4, 1)]);
     }
 }

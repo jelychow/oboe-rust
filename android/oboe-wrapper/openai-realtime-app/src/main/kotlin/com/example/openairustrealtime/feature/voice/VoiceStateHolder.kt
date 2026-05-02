@@ -391,8 +391,10 @@ class VoiceStateHolder(context: Context) : Closeable {
         }
 
         val inputDelta = (stats.inputChunks - lastStats.inputChunks).coerceAtLeast(0L)
+        val droppedDelta = (stats.droppedInputChunks - lastStats.droppedInputChunks).coerceAtLeast(0L)
         val outputDelta = (stats.outputChunks - lastStats.outputChunks).coerceAtLeast(0L)
         if (inputDelta > 0L) addEvent("Mic +$inputDelta chunks")
+        if (droppedDelta > 0L) addEvent("Mic dropped +$droppedDelta chunks")
         if (outputDelta > 0L) addEvent("Audio +$outputDelta chunks")
         val micLevel = if (inputDelta > 0L) stats.micLevel else 0f
         val outputLevel = if (outputDelta > 0L) stats.outputLevel else 0f

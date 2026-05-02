@@ -34,6 +34,7 @@ class MainActivity : Activity() {
     private lateinit var signalView: RealtimeSignalView
     private lateinit var micChunksView: TextView
     private lateinit var micFramesView: TextView
+    private lateinit var droppedMicView: TextView
     private lateinit var outputChunksView: TextView
     private lateinit var outputFramesView: TextView
     private lateinit var ttsModeButton: Button
@@ -183,6 +184,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             micChunksView = addMetric(this, "Mic chunks")
             micFramesView = addMetric(this, "Mic frames")
+            droppedMicView = addMetric(this, "Dropped mic")
             outputChunksView = addMetric(this, "Audio chunks")
             outputFramesView = addMetric(this, "Audio frames")
         }
@@ -474,6 +476,7 @@ class MainActivity : Activity() {
 
         micChunksView.text = state.stats.inputChunks.toString()
         micFramesView.text = state.stats.inputFrames.toString()
+        droppedMicView.text = state.stats.droppedInputFrames.toString()
         outputChunksView.text = state.stats.outputChunks.toString()
         outputFramesView.text = state.stats.outputFrames.toString()
         val audioActive = state.realtimeRunning || state.recording || state.status == "Playing"

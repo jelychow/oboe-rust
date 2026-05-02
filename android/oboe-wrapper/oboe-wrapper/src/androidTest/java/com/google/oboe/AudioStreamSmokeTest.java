@@ -10,6 +10,11 @@ public final class AudioStreamSmokeTest extends InstrumentationTestCase {
     public void testAAudioOutputLifecycle() {
         AudioStream stream = new AudioStreamBuilder()
                 .setAudioApi(AudioApi.AAUDIO)
+                .setDirection(AudioDirection.OUTPUT)
+                .setSampleRate(48000)
+                .setChannelCount(2)
+                .setFormat(AudioFormat.FLOAT)
+                .setPerformanceMode(PerformanceMode.LOW_LATENCY)
                 .openStream();
         try {
             assertEquals(0, stream.requestStart());

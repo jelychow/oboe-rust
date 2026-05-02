@@ -2,11 +2,14 @@ package com.google.oboe;
 
 public final class AudioStreamBuilder {
     private AudioApi audioApi = AudioApi.UNSPECIFIED;
-    private AudioCallback dataCallback;
-    private AudioPartialDataCallback partialDataCallback;
-    private AudioPresentationCallback presentationCallback;
-    private AudioRoutingCallback routingCallback;
-    private int framesPerDataCallback;
+    private AudioDirection direction = AudioDirection.OUTPUT;
+    private SharingMode sharingMode = SharingMode.SHARED;
+    private PerformanceMode performanceMode = PerformanceMode.NONE;
+    private int sampleRate;
+    private int channelCount = 2;
+    private AudioFormat format = AudioFormat.FLOAT;
+    private int framesPerCallback;
+    private int bufferCapacityInFrames;
 
     public AudioStreamBuilder setAudioApi(AudioApi audioApi) {
         if (audioApi == null) {
@@ -16,16 +19,77 @@ public final class AudioStreamBuilder {
         return this;
     }
 
+    public AudioStreamBuilder setDirection(AudioDirection direction) {
+        if (direction == null) {
+            throw new IllegalArgumentException("direction must not be null");
+        }
+        this.direction = direction;
+        return this;
+    }
+
+    public AudioStreamBuilder setSharingMode(SharingMode sharingMode) {
+        if (sharingMode == null) {
+            throw new IllegalArgumentException("sharingMode must not be null");
+        }
+        this.sharingMode = sharingMode;
+        return this;
+    }
+
+    public AudioStreamBuilder setPerformanceMode(PerformanceMode performanceMode) {
+        if (performanceMode == null) {
+            throw new IllegalArgumentException("performanceMode must not be null");
+        }
+        this.performanceMode = performanceMode;
+        return this;
+    }
+
+    public AudioStreamBuilder setSampleRate(int sampleRate) {
+        if (sampleRate < 0) {
+            throw new IllegalArgumentException("sampleRate must be non-negative");
+        }
+        this.sampleRate = sampleRate;
+        return this;
+    }
+
+    public AudioStreamBuilder setChannelCount(int channelCount) {
+        if (channelCount <= 0) {
+            throw new IllegalArgumentException("channelCount must be positive");
+        }
+        this.channelCount = channelCount;
+        return this;
+    }
+
+    public AudioStreamBuilder setFormat(AudioFormat format) {
+        if (format == null) {
+            throw new IllegalArgumentException("format must not be null");
+        }
+        this.format = format;
+        return this;
+    }
+
+    public AudioStreamBuilder setFramesPerCallback(int framesPerCallback) {
+        if (framesPerCallback < 0) {
+            throw new IllegalArgumentException("framesPerCallback must be non-negative");
+        }
+        this.framesPerCallback = framesPerCallback;
+        return this;
+    }
+
+    public AudioStreamBuilder setBufferCapacityInFrames(int bufferCapacityInFrames) {
+        if (bufferCapacityInFrames < 0) {
+            throw new IllegalArgumentException("bufferCapacityInFrames must be non-negative");
+        }
+        this.bufferCapacityInFrames = bufferCapacityInFrames;
+        return this;
+    }
+
     public AudioStreamBuilder setDataCallback(
             AudioCallback callback, int framesPerDataCallback) {
         if (callback == null) {
             throw new IllegalArgumentException("callback must not be null");
         }
         validateFramesPerDataCallback(framesPerDataCallback);
-        this.dataCallback = callback;
-        this.partialDataCallback = null;
-        this.framesPerDataCallback = framesPerDataCallback;
-        return this;
+        throw unsupportedCallbackDispatch();
     }
 
     public AudioStreamBuilder setPartialDataCallback(
@@ -34,77 +98,48 @@ public final class AudioStreamBuilder {
             throw new IllegalArgumentException("callback must not be null");
         }
         validateFramesPerDataCallback(framesPerDataCallback);
-        this.dataCallback = null;
-        this.partialDataCallback = callback;
-        this.framesPerDataCallback = framesPerDataCallback;
-        return this;
+        throw unsupportedCallbackDispatch();
     }
 
     public AudioStreamBuilder setPresentationCallback(AudioPresentationCallback callback) {
         if (callback == null) {
             throw new IllegalArgumentException("callback must not be null");
         }
-        this.presentationCallback = callback;
-        return this;
+        throw unsupportedCallbackDispatch();
     }
 
     public AudioStreamBuilder setRoutingCallback(AudioRoutingCallback callback) {
         if (callback == null) {
             throw new IllegalArgumentException("callback must not be null");
         }
-        this.routingCallback = callback;
-        return this;
+        throw unsupportedCallbackDispatch();
     }
 
     public AudioStream openStream() {
-        long handle = AudioStream.nativeOpen(audioApi.nativeValue);
+        long handle = AudioStream.nativeOpen(
+                audioApi.nativeValue,
+                direction.nativeValue,
+                sharingMode.nativeValue,
+                performanceMode.nativeValue,
+                sampleRate,
+                channelCount,
+                format.nativeValue,
+                framesPerCallback,
+                bufferCapacityInFrames);
         if (handle == 0) {
             throw new IllegalStateException("native stream open failed");
         }
-        AudioStream stream = new AudioStream(handle);
-        try {
-            applyCallbacks(stream);
-        } catch (RuntimeException error) {
-            try {
-                stream.close();
-            } catch (RuntimeException closeError) {
-                error.addSuppressed(closeError);
-            }
-            throw error;
-        }
-        return stream;
-    }
-
-    private void applyCallbacks(AudioStream stream) {
-        if (dataCallback != null) {
-            requireNativeOk(
-                    stream.setDataCallback(dataCallback, framesPerDataCallback),
-                    "setDataCallback");
-        }
-        if (partialDataCallback != null) {
-            requireNativeOk(
-                    stream.setPartialDataCallback(partialDataCallback, framesPerDataCallback),
-                    "setPartialDataCallback");
-        }
-        if (presentationCallback != null) {
-            requireNativeOk(
-                    stream.setPresentationCallback(presentationCallback),
-                    "setPresentationCallback");
-        }
-        if (routingCallback != null) {
-            requireNativeOk(stream.setRoutingCallback(routingCallback), "setRoutingCallback");
-        }
-    }
-
-    private static void requireNativeOk(int result, String operation) {
-        if (result != 0) {
-            throw new IllegalStateException(operation + " failed");
-        }
+        return new AudioStream(handle);
     }
 
     private static void validateFramesPerDataCallback(int framesPerDataCallback) {
         if (framesPerDataCallback < 0) {
             throw new IllegalArgumentException("framesPerDataCallback must be non-negative");
         }
+    }
+
+    private static UnsupportedOperationException unsupportedCallbackDispatch() {
+        return new UnsupportedOperationException(
+                "Java audio callbacks are not wired to the Rust audio callback thread yet");
     }
 }

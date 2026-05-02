@@ -18,7 +18,16 @@ public final class AudioStream implements AutoCloseable {
 
     public static native int nativeVersionCode();
 
-    static native long nativeOpen(int audioApi);
+    static native long nativeOpen(
+            int audioApi,
+            int direction,
+            int sharingMode,
+            int performanceMode,
+            int sampleRate,
+            int channelCount,
+            int format,
+            int framesPerCallback,
+            int bufferCapacityInFrames);
 
     private static native int nativeRequestStart(long handle);
 
@@ -70,19 +79,7 @@ public final class AudioStream implements AutoCloseable {
             throw new IllegalArgumentException("callback must not be null");
         }
         validateFramesPerDataCallback(framesPerDataCallback);
-        int result = nativeSetCallbackConfig(
-                nativeHandle,
-                true,
-                false,
-                presentationCallback != null,
-                routingCallback != null,
-                framesPerDataCallback);
-        if (result == 0) {
-            dataCallback = callback;
-            partialDataCallback = null;
-            this.framesPerDataCallback = framesPerDataCallback;
-        }
-        return result;
+        throw unsupportedCallbackDispatch();
     }
 
     public int setPartialDataCallback(
@@ -92,19 +89,7 @@ public final class AudioStream implements AutoCloseable {
             throw new IllegalArgumentException("callback must not be null");
         }
         validateFramesPerDataCallback(framesPerDataCallback);
-        int result = nativeSetCallbackConfig(
-                nativeHandle,
-                false,
-                true,
-                presentationCallback != null,
-                routingCallback != null,
-                framesPerDataCallback);
-        if (result == 0) {
-            dataCallback = null;
-            partialDataCallback = callback;
-            this.framesPerDataCallback = framesPerDataCallback;
-        }
-        return result;
+        throw unsupportedCallbackDispatch();
     }
 
     public int clearDataCallbacks() {
@@ -128,17 +113,7 @@ public final class AudioStream implements AutoCloseable {
         if (callback == null) {
             throw new IllegalArgumentException("callback must not be null");
         }
-        int result = nativeSetCallbackConfig(
-                nativeHandle,
-                dataCallback != null,
-                partialDataCallback != null,
-                true,
-                routingCallback != null,
-                framesPerDataCallback);
-        if (result == 0) {
-            presentationCallback = callback;
-        }
-        return result;
+        throw unsupportedCallbackDispatch();
     }
 
     public int clearPresentationCallback() {
@@ -161,17 +136,7 @@ public final class AudioStream implements AutoCloseable {
         if (callback == null) {
             throw new IllegalArgumentException("callback must not be null");
         }
-        int result = nativeSetCallbackConfig(
-                nativeHandle,
-                dataCallback != null,
-                partialDataCallback != null,
-                presentationCallback != null,
-                true,
-                framesPerDataCallback);
-        if (result == 0) {
-            routingCallback = callback;
-        }
-        return result;
+        throw unsupportedCallbackDispatch();
     }
 
     public int clearRoutingCallback() {
@@ -252,5 +217,10 @@ public final class AudioStream implements AutoCloseable {
         if (framesPerDataCallback < 0) {
             throw new IllegalArgumentException("framesPerDataCallback must be non-negative");
         }
+    }
+
+    private static UnsupportedOperationException unsupportedCallbackDispatch() {
+        return new UnsupportedOperationException(
+                "Java audio callbacks are not wired to the Rust audio callback thread yet");
     }
 }

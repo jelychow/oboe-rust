@@ -15,6 +15,9 @@ pub struct AAudioBackend {
     platform: platform::AAudioPlatformStream,
 }
 
+// SAFETY: AAudioBackend owns a single AAudio stream handle and all stream
+// operations require &mut self, so this crate never performs concurrent native
+// access after moving the owner to another thread.
 #[cfg(target_os = "android")]
 unsafe impl Send for AAudioBackend {}
 
@@ -198,6 +201,10 @@ mod platform {
         }
     }
 
+    // SAFETY: The raw AAudioStream pointer is owned by this value, closed in
+    // Drop, and only touched through &mut self methods. No data callbacks are
+    // registered in this wrapper, so moving ownership between threads does not
+    // introduce simultaneous access from Rust.
     unsafe impl Send for AAudioPlatformStream {}
 
     impl AAudioPlatformStream {
