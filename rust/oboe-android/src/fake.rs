@@ -1,6 +1,6 @@
 use crate::backend::AudioBackend;
 use oboe_core::builder::StreamBuilder;
-use oboe_core::error::{Error, Result};
+use oboe_core::error::Result;
 use oboe_core::stream::{StreamCore, StreamState};
 
 #[derive(Debug)]
@@ -36,6 +36,7 @@ impl AudioBackend for FakeBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use oboe_core::error::Error;
 
     #[test]
     fn fake_backend_proves_backend_trait_contract() {
@@ -56,6 +57,9 @@ mod tests {
             ..StreamBuilder::default()
         };
 
-        assert_eq!(FakeBackend::open(&builder).unwrap_err(), Error::InvalidArgument);
+        assert_eq!(
+            FakeBackend::open(&builder).unwrap_err(),
+            Error::InvalidArgument
+        );
     }
 }
