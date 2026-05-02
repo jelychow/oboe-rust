@@ -75,4 +75,22 @@ mod tests {
         };
         assert_eq!(builder.validate(), Err(Error::InvalidArgument));
     }
+
+    #[test]
+    fn rejects_negative_frames_per_callback() {
+        let builder = StreamBuilder {
+            frames_per_callback: -192,
+            ..StreamBuilder::default()
+        };
+        assert_eq!(builder.validate(), Err(Error::InvalidArgument));
+    }
+
+    #[test]
+    fn rejects_negative_buffer_capacity_in_frames() {
+        let builder = StreamBuilder {
+            buffer_capacity_in_frames: -256,
+            ..StreamBuilder::default()
+        };
+        assert_eq!(builder.validate(), Err(Error::InvalidArgument));
+    }
 }
