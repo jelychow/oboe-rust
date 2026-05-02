@@ -6,6 +6,13 @@ cmake_minimum_required(VERSION 3.22.1)
 # e.g. ${OBOE_HOME}/samples/RhythmGame/.externalNativeBuild/cmake/ndkExtractorDebug/x86/oboe-bin)
 project(oboe)
 
+option(OBOE_BUILD_LEGACY_CPP "Build the legacy C++ Oboe target for reference and compatibility checks" OFF)
+
+if(NOT OBOE_BUILD_LEGACY_CPP)
+    message(STATUS "Oboe: legacy C++ target is disabled. Use android/oboe-wrapper for the Rust-native main path.")
+    return()
+endif()
+
 set (oboe_sources
     src/aaudio/AAudioLoader.cpp
     src/aaudio/AudioStreamAAudio.cpp
