@@ -10,4 +10,10 @@ android {
         minSdk 21
         testInstrumentationRunner 'android.test.InstrumentationTestRunner'
     }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
 }
