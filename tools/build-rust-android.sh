@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+manifest_path="$repo_root/rust/Cargo.toml"
+api_level="${API_LEVEL:-26}"
+android_ndk="${ANDROID_NDK:-$repo_root/.local/android-sdk/ndk/29.0.14206865}"
+toolchain_root="$android_ndk/toolchains/llvm/prebuilt"
+target_dir="${CARGO_TARGET_DIR:-$repo_root/rust/target}"
+
+if [[ -n "${ANDROID_NDK_HOST_TAG:-}" ]]; then
+  host_tag="$ANDROID_NDK_HOST_TAG"
+else
+  case "$(uname -s)" in
+    Linux*) host_tag="linux-x86_64" ;;
+    Darwin*)
+      if [[ -d "$toolchain_root/darwin-aarch64" ]]; then
+        host_tag="darwin-aarch64"
+      else
+        host_tag="darwin-x86_64"
+      fi
+      ;;
+    MINGW* | MSYS* | CYGWIN*) host_tag="windows-x86_64" ;;
+    *)
+      echo "Unsupported host OS '$(uname -s)'. Set ANDROID_NDK_HOST_TAG to override." >&2
+      exit 1
+      ;;
+  esac
+fi
+
+toolchain_bin="$toolchain_root/$host_tag/bin"
+
+if [[ ! -f "$manifest_path" ]]; then
+  echo "Rust manifest not found at '$manifest_path'." >&2
+  exit 1
+fi
+
+if [[ ! -d "$toolchain_bin" ]]; then
+  echo "Android NDK toolchain bin directory not found at '$toolchain_bin'." >&2
+  exit 1
+fi
+
+resolve_tool() {
+  local tool="$1"
+  if [[ -x "$toolchain_bin/$tool" ]]; then
+    printf '%s\n' "$toolchain_bin/$tool"
+  elif [[ -x "$toolchain_bin/$tool.cmd" ]]; then
+    printf '%s\n' "$toolchain_bin/$tool.cmd"
+  elif [[ -x "$toolchain_bin/$tool.exe" ]]; then
+    printf '%s\n' "$toolchain_bin/$tool.exe"
+  else
+    echo "Missing Android NDK tool '$tool' in '$toolchain_bin'." >&2
+    return 1
+  fi
+}
+
+targets=(
+  "arm64-v8a|aarch64-linux-android|aarch64-linux-android${api_level}-clang|CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER|aarch64_linux_android"
+  "armeabi-v7a|armv7-linux-androideabi|armv7a-linux-androideabi${api_level}-clang|CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER|armv7_linux_androideabi"
+  "x86|i686-linux-android|i686-linux-android${api_level}-clang|CARGO_TARGET_I686_LINUX_ANDROID_LINKER|i686_linux_android"
+  "x86_64|x86_64-linux-android|x86_64-linux-android${api_level}-clang|CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER|x86_64_linux_android"
+)
+
+libraries=(
+  "oboe-jni|liboboe_jni.so|$repo_root/android/oboe-wrapper/oboe-wrapper/src/main/jniLibs"
+  "oboe-samples-jni|liboboe_samples_jni.so|$repo_root/android/oboe-wrapper/oboe-samples-app/src/main/jniLibs"
+  "minimaloboe-rust-jni|libminimaloboe_rust.so|$repo_root/android/oboe-wrapper/minimaloboe-rust-app/src/main/jniLibs"
+  "openai-realtime-jni|libopenai_realtime_jni.so|$repo_root/android/oboe-wrapper/openai-realtime-app/src/main/jniLibs"
+)
+
+for target in "${targets[@]}"; do
+  IFS='|' read -r abi triple linker linker_env cc_env_suffix <<< "$target"
+  linker_path="$(resolve_tool "$linker")"
+  ar_path="$(resolve_tool llvm-ar)"
+
+  export "$linker_env=$linker_path"
+  export "CC_$cc_env_suffix=$linker_path"
+  export "AR_$cc_env_suffix=$ar_path"
+
+  for library in "${libraries[@]}"; do
+    IFS='|' read -r package library_name out_root <<< "$library"
+    cargo build \
+      --manifest-path "$manifest_path" \
+      -p "$package" \
+      --release \
+      --target "$triple" \
+      --target-dir "$target_dir"
+
+    built_library="$target_dir/$triple/release/$library_name"
+    if [[ ! -f "$built_library" ]]; then
+      echo "Expected Rust library not found at '$built_library'." >&2
+      exit 1
+    fi
+
+    abi_output_dir="$out_root/$abi"
+    mkdir -p "$abi_output_dir"
+    cp "$built_library" "$abi_output_dir/$library_name"
+  done
+done

@@ -104,7 +104,7 @@ fn validate_first_phase_format(format: Format) -> Result<()> {
 
 fn validate_buffer_len(sample_count: usize, channel_count: i32) -> Result<()> {
     let channel_count = usize::try_from(channel_count).map_err(|_| Error::InvalidArgument)?;
-    if channel_count == 0 || !sample_count.is_multiple_of(channel_count) {
+    if channel_count == 0 || sample_count % channel_count != 0 {
         return Err(Error::InvalidArgument);
     }
     Ok(())
@@ -131,7 +131,7 @@ mod platform {
     use core::ffi::c_void;
     use core::ptr;
     use oboe_core::format::{float_to_i16, i16_to_float};
-    use oboe_core::types::Direction;
+    use oboe_core::types::{Direction, PerformanceMode, SharingMode};
 
     const AAUDIO_OK: i32 = 0;
     const AAUDIO_DIRECTION_OUTPUT: i32 = 0;
@@ -158,6 +158,11 @@ mod platform {
         fn AAudioStreamBuilder_setChannelCount(
             builder: *mut AAudioStreamBuilder,
             channel_count: i32,
+        );
+        fn AAudioStreamBuilder_setSharingMode(builder: *mut AAudioStreamBuilder, sharing_mode: i32);
+        fn AAudioStreamBuilder_setPerformanceMode(
+            builder: *mut AAudioStreamBuilder,
+            performance_mode: i32,
         );
         fn AAudioStreamBuilder_openStream(
             builder: *mut AAudioStreamBuilder,
@@ -210,6 +215,14 @@ mod platform {
                 );
                 AAudioStreamBuilder_setFormat(stream_builder, format_to_aaudio(builder.format)?);
                 AAudioStreamBuilder_setChannelCount(stream_builder, builder.channel_count);
+                AAudioStreamBuilder_setSharingMode(
+                    stream_builder,
+                    sharing_mode_to_aaudio(builder.sharing_mode),
+                );
+                AAudioStreamBuilder_setPerformanceMode(
+                    stream_builder,
+                    performance_mode_to_aaudio(builder.performance_mode),
+                );
                 if builder.sample_rate > 0 {
                     AAudioStreamBuilder_setSampleRate(stream_builder, builder.sample_rate);
                 }
@@ -307,7 +320,7 @@ mod platform {
             }
             let result = unsafe { AAudioStream_write(self.stream, buffer, frames, timeout_nanos) };
             if result < 0 {
-                Err(Error::InvalidState)
+                Err(Error::from_platform_result(result))
             } else {
                 Ok(result)
             }
@@ -324,7 +337,7 @@ mod platform {
             }
             let result = unsafe { AAudioStream_read(self.stream, buffer, frames, timeout_nanos) };
             if result < 0 {
-                Err(Error::InvalidState)
+                Err(Error::from_platform_result(result))
             } else {
                 Ok(result)
             }
@@ -356,6 +369,21 @@ mod platform {
             Format::I16 => Ok(AAUDIO_FORMAT_PCM_I16),
             Format::Float => Ok(AAUDIO_FORMAT_PCM_FLOAT),
             Format::Unspecified | Format::I24 | Format::I32 => Err(Error::InvalidArgument),
+        }
+    }
+
+    fn sharing_mode_to_aaudio(sharing_mode: SharingMode) -> i32 {
+        match sharing_mode {
+            SharingMode::Exclusive => 0,
+            SharingMode::Shared => 1,
+        }
+    }
+
+    fn performance_mode_to_aaudio(performance_mode: PerformanceMode) -> i32 {
+        match performance_mode {
+            PerformanceMode::None => 10,
+            PerformanceMode::PowerSaving => 11,
+            PerformanceMode::LowLatency => 12,
         }
     }
 
@@ -468,5 +496,10 @@ mod tests {
             AAudioBackend::open(&builder).unwrap_err(),
             Error::InvalidArgument
         );
+    }
+
+    #[test]
+    fn negative_platform_results_preserve_native_code() {
+        assert_eq!(Error::from_platform_result(-899), Error::Platform(-899));
     }
 }

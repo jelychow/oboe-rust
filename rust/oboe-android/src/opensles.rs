@@ -116,7 +116,7 @@ fn validate_first_phase_format(format: Format) -> Result<()> {
 
 fn validate_buffer_len(sample_count: usize, channel_count: i32) -> Result<()> {
     let channel_count = usize::try_from(channel_count).map_err(|_| Error::InvalidArgument)?;
-    if channel_count == 0 || !sample_count.is_multiple_of(channel_count) {
+    if channel_count == 0 || sample_count % channel_count != 0 {
         return Err(Error::InvalidArgument);
     }
     Ok(())

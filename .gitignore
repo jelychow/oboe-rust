@@ -6,3 +6,7 @@
 build
 .logpile
 
+.omx/
+.local/
+local.properties
+.gradle/

@@ -7,9 +7,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if ($env:PATHEXT -notmatch '(^|;)\.EXE(;|$)') {
+    $env:PATHEXT = ".COM;.EXE;.BAT;.CMD;$env:PATHEXT"
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $manifestPath = Join-Path $repoRoot "rust/Cargo.toml"
-$outRoot = Join-Path $repoRoot "android/oboe-wrapper/oboe-wrapper/src/main/jniLibs"
+$wrapperOutRoot = Join-Path $repoRoot "android/oboe-wrapper/oboe-wrapper/src/main/jniLibs"
+$samplesOutRoot = Join-Path $repoRoot "android/oboe-wrapper/oboe-samples-app/src/main/jniLibs"
+$minimalOboeOutRoot = Join-Path $repoRoot "android/oboe-wrapper/minimaloboe-rust-app/src/main/jniLibs"
+$openAiRealtimeOutRoot = Join-Path $repoRoot "android/oboe-wrapper/openai-realtime-app/src/main/jniLibs"
 $toolchainBin = Join-Path $AndroidNdk "toolchains/llvm/prebuilt/windows-x86_64/bin"
 
 if (-not (Test-Path -LiteralPath $manifestPath)) {
@@ -18,6 +25,35 @@ if (-not (Test-Path -LiteralPath $manifestPath)) {
 
 if (-not (Test-Path -LiteralPath $toolchainBin)) {
     throw "Android NDK LLVM toolchain bin directory not found at '$toolchainBin'."
+}
+
+$cargoCommand = Get-Command cargo.exe -ErrorAction SilentlyContinue
+if ($null -eq $cargoCommand) {
+    $cargoCommand = Get-Command cargo -ErrorAction SilentlyContinue
+}
+if ($null -eq $cargoCommand) {
+    throw "cargo executable not found on PATH."
+}
+
+function Invoke-ExternalCommand($filePath, $arguments, $failureMessage) {
+    $argumentLine = ($arguments | ForEach-Object {
+        $argument = [string]$_
+        if ($argument -match '[\s"]') {
+            '"' + ($argument -replace '"', '\"') + '"'
+        } else {
+            $argument
+        }
+    }) -join " "
+
+    $process = Start-Process `
+        -FilePath $filePath `
+        -ArgumentList $argumentLine `
+        -Wait `
+        -PassThru `
+        -NoNewWindow
+    if ($process.ExitCode -ne 0) {
+        throw "$failureMessage Exit code $($process.ExitCode)."
+    }
 }
 
 $targets = @(
@@ -47,6 +83,29 @@ $targets = @(
     }
 )
 
+$libraryBuilds = @(
+    @{
+        Package = "oboe-jni"
+        Library = "liboboe_jni.so"
+        OutRoot = $wrapperOutRoot
+    },
+    @{
+        Package = "oboe-samples-jni"
+        Library = "liboboe_samples_jni.so"
+        OutRoot = $samplesOutRoot
+    },
+    @{
+        Package = "minimaloboe-rust-jni"
+        Library = "libminimaloboe_rust.so"
+        OutRoot = $minimalOboeOutRoot
+    },
+    @{
+        Package = "openai-realtime-jni"
+        Library = "libopenai_realtime_jni.so"
+        OutRoot = $openAiRealtimeOutRoot
+    }
+)
+
 foreach ($target in $targets) {
     $linkerPath = Join-Path $toolchainBin $target.Linker
     if (-not (Test-Path -LiteralPath $linkerPath)) {
@@ -55,17 +114,19 @@ foreach ($target in $targets) {
 
     [Environment]::SetEnvironmentVariable($target.LinkerEnv, $linkerPath, "Process")
 
-    & cargo build --manifest-path $manifestPath -p oboe-jni --release --target $target.Triple
-    if ($LASTEXITCODE -ne 0) {
-        throw "cargo build failed for target '$($target.Triple)' with exit code $LASTEXITCODE."
-    }
+    foreach ($libraryBuild in $libraryBuilds) {
+        Invoke-ExternalCommand `
+            $cargoCommand.Source `
+            @("build", "--manifest-path", $manifestPath, "-p", $libraryBuild.Package, "--release", "--target", $target.Triple) `
+            "cargo build failed for package '$($libraryBuild.Package)' target '$($target.Triple)'."
 
-    $builtLibrary = Join-Path $repoRoot "rust/target/$($target.Triple)/release/liboboe_jni.so"
-    if (-not (Test-Path -LiteralPath $builtLibrary)) {
-        throw "Expected Rust library not found at '$builtLibrary'."
-    }
+        $builtLibrary = Join-Path $repoRoot "rust/target/$($target.Triple)/release/$($libraryBuild.Library)"
+        if (-not (Test-Path -LiteralPath $builtLibrary)) {
+            throw "Expected Rust library not found at '$builtLibrary'."
+        }
 
-    $abiOutputDir = Join-Path $outRoot $target.Abi
-    New-Item -ItemType Directory -Force -Path $abiOutputDir | Out-Null
-    Copy-Item -LiteralPath $builtLibrary -Destination (Join-Path $abiOutputDir "liboboe_jni.so") -Force
+        $abiOutputDir = Join-Path $libraryBuild.OutRoot $target.Abi
+        New-Item -ItemType Directory -Force -Path $abiOutputDir | Out-Null
+        Copy-Item -LiteralPath $builtLibrary -Destination (Join-Path $abiOutputDir $libraryBuild.Library) -Force
+    }
 }

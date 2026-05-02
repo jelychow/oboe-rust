@@ -4,9 +4,17 @@ members = [
     "oboe-core",
     "oboe-android",
     "oboe-jni",
+    "oboe-samples",
+    "oboe-samples-jni",
+    "minimaloboe-rust-jni",
+    "openai-realtime-jni",
 ]
 
 [workspace.package]
 edition = "2021"
 license = "Apache-2.0"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
+repository = "https://github.com/seczhou/oboe-rust"
+homepage = "https://github.com/seczhou/oboe-rust"
+documentation = "https://docs.rs/oboe-core"
+rust-version = "1.82"

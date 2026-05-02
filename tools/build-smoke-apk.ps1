@@ -10,6 +10,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if ($env:PATHEXT -notmatch '(^|;)\.EXE(;|$)') {
+    $env:PATHEXT = ".COM;.EXE;.BAT;.CMD;$env:PATHEXT"
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $wrapperJavaDir = Join-Path $repoRoot "android/oboe-wrapper/oboe-wrapper/src/main/java"
 $appJavaDir = Join-Path $repoRoot "android/oboe-wrapper/oboe-smoke-app/src/main/java"
@@ -20,7 +24,8 @@ $dexDir = Join-Path $buildRoot "dex"
 $packagingDir = Join-Path $buildRoot "package"
 $unsignedApk = Join-Path $buildRoot "oboe-smoke-unsigned.apk"
 $alignedApk = Join-Path $buildRoot "oboe-smoke-aligned.apk"
-$keystore = Join-Path $buildRoot "debug.keystore"
+$androidUserHome = $(if ($env:ANDROID_USER_HOME) { $env:ANDROID_USER_HOME } else { Join-Path $env:USERPROFILE ".android" })
+$keystore = Join-Path $androidUserHome "debug.keystore"
 
 if ([string]::IsNullOrWhiteSpace($OutputApk)) {
     $OutputApk = Join-Path $buildRoot "oboe-smoke-debug.apk"
@@ -57,10 +62,33 @@ $d8 = Join-Path $buildToolsDir "d8.bat"
 $zipalign = Join-Path $buildToolsDir "zipalign.exe"
 $apksigner = Join-Path $buildToolsDir "apksigner.bat"
 $adb = Join-Path $AndroidSdk "platform-tools/adb.exe"
+$javac = (Get-Command javac.exe -ErrorAction Stop).Source
+$keytool = (Get-Command keytool.exe -ErrorAction Stop).Source
 
-foreach ($path in @($androidJar, $aapt2, $d8, $zipalign, $apksigner, $adb, $appManifest)) {
+foreach ($path in @($androidJar, $aapt2, $d8, $zipalign, $apksigner, $adb, $javac, $keytool, $appManifest)) {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "Required Android tool or input is missing: '$path'."
+    }
+}
+
+function Invoke-ExternalCommand($filePath, $arguments, $failureMessage) {
+    $argumentLine = ($arguments | ForEach-Object {
+        $argument = [string]$_
+        if ($argument -match '[\s"]') {
+            '"' + ($argument -replace '"', '\"') + '"'
+        } else {
+            $argument
+        }
+    }) -join " "
+
+    $process = Start-Process `
+        -FilePath $filePath `
+        -ArgumentList $argumentLine `
+        -Wait `
+        -PassThru `
+        -NoNewWindow
+    if ($process.ExitCode -ne 0) {
+        throw "$failureMessage Exit code $($process.ExitCode)."
     }
 }
 
@@ -70,9 +98,6 @@ if (Test-Path -LiteralPath (Join-Path $cargoBin "cargo.exe")) {
 }
 
 & (Join-Path $PSScriptRoot "build-rust-android.ps1") -AndroidNdk $ndkDir -ApiLevel $MinSdk
-if ($LASTEXITCODE -ne 0) {
-    throw "Rust Android JNI library build failed."
-}
 
 Remove-Item -Recurse -Force -LiteralPath $buildRoot -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $classesDir, $dexDir, $packagingDir | Out-Null
@@ -88,28 +113,21 @@ $javaSources = @(
     Get-ChildItem -LiteralPath $appJavaDir -Filter *.java -Recurse
 ) | ForEach-Object { $_.FullName }
 
-& javac.exe -source 8 -target 8 -encoding UTF-8 -bootclasspath $androidJar -d $classesDir $javaSources
-if ($LASTEXITCODE -ne 0) {
-    throw "javac failed for smoke APK sources."
-}
+Invoke-ExternalCommand `
+    $javac `
+    (@("-source", "8", "-target", "8", "-encoding", "UTF-8", "-bootclasspath", $androidJar, "-d", $classesDir) + $javaSources) `
+    "javac failed for smoke APK sources."
 
 $classFiles = Get-ChildItem -LiteralPath $classesDir -Filter *.class -Recurse | ForEach-Object { $_.FullName }
-& $d8 --min-api $MinSdk --lib $androidJar --output $dexDir $classFiles
-if ($LASTEXITCODE -ne 0) {
-    throw "d8 failed for smoke APK classes."
-}
+Invoke-ExternalCommand `
+    $d8 `
+    (@("--min-api", $MinSdk, "--lib", $androidJar, "--output", $dexDir) + $classFiles) `
+    "d8 failed for smoke APK classes."
 
-& $aapt2 link `
-    -o $unsignedApk `
-    -I $androidJar `
-    --manifest $manualManifest `
-    --min-sdk-version $MinSdk `
-    --target-sdk-version $TargetSdk `
-    --version-code 1 `
-    --version-name "0.1.0"
-if ($LASTEXITCODE -ne 0) {
-    throw "aapt2 link failed for smoke APK."
-}
+Invoke-ExternalCommand `
+    $aapt2 `
+    @("link", "-o", $unsignedApk, "-I", $androidJar, "--manifest", $manualManifest, "--min-sdk-version", $MinSdk, "--target-sdk-version", $TargetSdk, "--version-code", "1", "--version-name", "0.1.0") `
+    "aapt2 link failed for smoke APK."
 
 Copy-Item -LiteralPath (Join-Path $dexDir "classes.dex") -Destination (Join-Path $packagingDir "classes.dex")
 
@@ -133,47 +151,34 @@ try {
     $archive.Dispose()
 }
 
-& $zipalign -f 4 $unsignedApk $alignedApk
-if ($LASTEXITCODE -ne 0) {
-    throw "zipalign failed for smoke APK."
-}
+Invoke-ExternalCommand `
+    $zipalign `
+    @("-f", "4", $unsignedApk, $alignedApk) `
+    "zipalign failed for smoke APK."
 
 if (-not (Test-Path -LiteralPath $keystore)) {
-    & keytool.exe -genkeypair `
-        -keystore $keystore `
-        -storepass android `
-        -keypass android `
-        -alias androiddebugkey `
-        -keyalg RSA `
-        -keysize 2048 `
-        -validity 10000 `
-        -dname "CN=Android Debug,O=Android,C=US" `
-        -noprompt | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "debug keystore generation failed."
-    }
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $keystore) | Out-Null
+    Invoke-ExternalCommand `
+        $keytool `
+        @("-genkeypair", "-keystore", $keystore, "-storepass", "android", "-keypass", "android", "-alias", "androiddebugkey", "-keyalg", "RSA", "-keysize", "2048", "-validity", "10000", "-dname", "CN=Android Debug,O=Android,C=US", "-noprompt") `
+        "debug keystore generation failed."
 }
 
-& $apksigner sign `
-    --ks $keystore `
-    --ks-pass pass:android `
-    --key-pass pass:android `
-    --out $OutputApk `
-    $alignedApk
-if ($LASTEXITCODE -ne 0) {
-    throw "apksigner failed for smoke APK."
-}
+Invoke-ExternalCommand `
+    $apksigner `
+    @("sign", "--ks", $keystore, "--ks-pass", "pass:android", "--key-pass", "pass:android", "--out", $OutputApk, $alignedApk) `
+    "apksigner failed for smoke APK."
 
-& $apksigner verify --verbose $OutputApk
-if ($LASTEXITCODE -ne 0) {
-    throw "apksigner verify failed for smoke APK."
-}
+Invoke-ExternalCommand `
+    $apksigner `
+    @("verify", "--verbose", $OutputApk) `
+    "apksigner verify failed for smoke APK."
 
 Write-Output "Smoke APK built: $OutputApk"
 
 if ($Install) {
-    & $adb install -r $OutputApk
-    if ($LASTEXITCODE -ne 0) {
-        throw "adb install failed."
-    }
+    Invoke-ExternalCommand `
+        $adb `
+        @("install", "-r", $OutputApk) `
+        "adb install failed."
 }

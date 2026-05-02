@@ -1,4 +1,4 @@
-# Rust-Native Oboe Docs
+# oboe-rust Docs
 
 The active repository surface is Rust plus the Android Java/JNI wrapper.
 
@@ -10,6 +10,8 @@ The active repository surface is Rust plus the Android Java/JNI wrapper.
 - `../android/oboe-wrapper`: Java wrapper project and smoke tests.
 - `../tools/build-rust-android.ps1`: Android ABI build helper.
 - `../tools/build-smoke-apk.ps1`: signed smoke APK build and optional install helper.
+- `rust-oboe-release-scope.md`: alpha release boundaries and C++ Oboe parity snapshot.
+- `rust-android-device-smoke.md`: Android ABI, APK, install, and logcat smoke runbook.
 
 Open the repository root in Android Studio for Gradle sync. The root project maps
 `:oboe-wrapper` to the Java/JNI library and `:oboe-smoke-app` to a minimal app

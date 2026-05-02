@@ -3,6 +3,14 @@ name = "oboe-core"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+rust-version.workspace = true
+description = "Backend-neutral Rust core types for an experimental Rust-native Oboe audio API."
+readme = "README.md"
+keywords = ["android", "audio", "oboe"]
+categories = ["multimedia::audio", "api-bindings"]
 
 [lib]
 crate-type = ["rlib"]

@@ -14,10 +14,19 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = 'RustNativeOboe'
+rootProject.name = 'oboe-rust'
 
 include ':oboe-wrapper'
 project(':oboe-wrapper').projectDir = file('android/oboe-wrapper/oboe-wrapper')
 
 include ':oboe-smoke-app'
 project(':oboe-smoke-app').projectDir = file('android/oboe-wrapper/oboe-smoke-app')
+
+include ':oboe-samples-app'
+project(':oboe-samples-app').projectDir = file('android/oboe-wrapper/oboe-samples-app')
+
+include ':minimaloboe-rust-app'
+project(':minimaloboe-rust-app').projectDir = file('android/oboe-wrapper/minimaloboe-rust-app')
+
+include ':openai-realtime-app'
+project(':openai-realtime-app').projectDir = file('android/oboe-wrapper/openai-realtime-app')

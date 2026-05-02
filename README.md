@@ -1,4 +1,4 @@
-# Rust-Native Oboe
+# oboe-rust
 
 This repository has been reduced to the Rust-native Android audio path.
 
@@ -10,6 +10,12 @@ The legacy C++ implementation, C++ public headers, CMake/Prefab build scripts, s
 - `android/oboe-wrapper`: Android Java wrapper and smoke tests.
 - `tools/build-rust-android.ps1`: Android ABI build helper for `liboboe_jni.so`.
 
+## Release Scope
+
+The Rust crates are currently alpha-quality. Before publishing or consuming them
+as library dependencies, read `docs/rust-oboe-release-scope.md`. The alpha
+release is not a drop-in replacement for the C++ Oboe API.
+
 ## Build and Test
 
 ```sh
@@ -17,6 +23,32 @@ cargo fmt --manifest-path rust/Cargo.toml --all -- --check
 cargo clippy --manifest-path rust/Cargo.toml --workspace --tests -- -D warnings
 cargo test --manifest-path rust/Cargo.toml
 ```
+
+## Rust Alpha Release Check
+
+Run the release gate before publishing Rust crates:
+
+```sh
+tools/check-rust-release.sh
+```
+
+Include Android target checks for the publishable crates when the Rust Android
+targets are installed:
+
+```sh
+CHECK_ANDROID_ABI=1 tools/check-rust-release.sh
+```
+
+For the first crates.io release, `oboe-core` must be published and visible in
+the registry before dependent crate dry-runs can resolve it. After `oboe-core`
+is indexed, run the dependent dry-runs:
+
+```sh
+VERIFY_PUBLISHED_DEPS=1 tools/check-rust-release.sh
+```
+
+JNI `.so` builds for Android sample apps are smoke checks rather than crates.io
+publish gates. Use `docs/rust-android-device-smoke.md` for that path.
 
 ## Android Gradle Sync
 

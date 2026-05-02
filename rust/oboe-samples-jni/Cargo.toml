@@ -1,0 +1,14 @@
+[package]
+name = "oboe-samples-jni"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[dependencies]
+oboe-android = { path = "../oboe-android" }
+oboe-core = { path = "../oboe-core" }
+oboe-samples = { path = "../oboe-samples" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]

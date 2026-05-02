@@ -2,6 +2,11 @@ package com.google.oboe.smoke;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.util.Log;
+import android.view.View;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import com.google.oboe.AudioApi;
 import com.google.oboe.AudioStream;
@@ -9,50 +14,132 @@ import com.google.oboe.AudioStreamBuilder;
 import com.google.oboe.PlaybackParameters;
 
 public final class MainActivity extends Activity {
+    private static final String TAG = "OboeSmoke";
+
+    private final StringBuilder result = new StringBuilder();
+    private TextView output;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        TextView output = new TextView(this);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(32, 32, 32, 32);
+
+        Button probeAaudio = createButton("Probe AAudio", new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                smokeApi(AudioApi.AAUDIO);
+            }
+        });
+        Button probeOpenSl = createButton("Probe OpenSL ES", new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                smokeApi(AudioApi.OPENSL_ES);
+            }
+        });
+        Button probeBoth = createButton("Probe Both Backends", new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                smokeApi(AudioApi.AAUDIO);
+                smokeApi(AudioApi.OPENSL_ES);
+            }
+        });
+
+        output = new TextView(this);
         output.setTextSize(16.0f);
-        output.setPadding(32, 32, 32, 32);
-        output.setText(runSmokeTest());
-        setContentView(output);
+        output.setPadding(0, 24, 0, 0);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(output);
+
+        root.addView(probeAaudio);
+        root.addView(probeOpenSl);
+        root.addView(probeBoth);
+        root.addView(scrollView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1.0f));
+
+        setContentView(root);
+        runStartupCheck();
     }
 
-    private static String runSmokeTest() {
-        StringBuilder result = new StringBuilder();
-        result.append("Rust-native Oboe smoke test\n\n");
+    private Button createButton(String text, View.OnClickListener listener) {
+        Button button = new Button(this);
+        button.setAllCaps(false);
+        button.setText(text);
+        button.setOnClickListener(listener);
+        return button;
+    }
+
+    private void runStartupCheck() {
+        append("Rust-native Oboe smoke test\n\n");
 
         try {
-            result.append("nativeVersionCode=").append(AudioStream.nativeVersionCode()).append('\n');
+            int versionCode = AudioStream.nativeVersionCode();
+            append("nativeVersionCode=");
+            append(Integer.toString(versionCode));
+            append('\n');
+            append("JNI library loaded successfully.\n");
+            Log.i(TAG, "JNI library loaded successfully, nativeVersionCode=" + versionCode);
         } catch (Throwable error) {
-            result.append("native library load failed: ").append(error).append('\n');
-            return result.toString();
+            append("native library load failed: ");
+            append(error.toString());
+            append('\n');
+            Log.e(TAG, "Native library load failed", error);
+            return;
         }
 
-        smokeApi(result, AudioApi.AAUDIO);
-        smokeApi(result, AudioApi.OPENSL_ES);
-        return result.toString();
+        append("\nBackend probes are manual. If a probe fails with AudioTrack -22, ");
+        append("the APK and JNI load still succeeded; the current device did not ");
+        append("accept that audio backend configuration.\n");
     }
 
-    private static void smokeApi(StringBuilder result, AudioApi api) {
-        result.append('\n').append(api.name()).append('\n');
+    private void smokeApi(AudioApi api) {
+        append('\n');
+        append(api.name());
+        append(" backend probe\n");
         try (AudioStream stream = new AudioStreamBuilder().setAudioApi(api).openStream()) {
-            result.append("open state=").append(stream.getState()).append('\n');
-            result.append("setPlaybackParameters=")
-                    .append(stream.setPlaybackParameters(PlaybackParameters.defaults()))
-                    .append('\n');
-            result.append("requestStart=").append(stream.requestStart()).append('\n');
-            result.append("started state=").append(stream.getState()).append('\n');
-            result.append("requestStop=").append(stream.requestStop()).append('\n');
-            result.append("stopped state=").append(stream.getState()).append('\n');
+            append("open state=");
+            append(Integer.toString(stream.getState()));
+            append('\n');
+            append("setPlaybackParameters=");
+            append(Integer.toString(stream.setPlaybackParameters(PlaybackParameters.defaults())));
+            append('\n');
+            append("requestStart=");
+            append(Integer.toString(stream.requestStart()));
+            append('\n');
+            append("started state=");
+            append(Integer.toString(stream.getState()));
+            append('\n');
+            append("requestStop=");
+            append(Integer.toString(stream.requestStop()));
+            append('\n');
+            append("stopped state=");
+            append(Integer.toString(stream.getState()));
+            append('\n');
+            Log.i(TAG, api.name() + " backend probe succeeded");
         } catch (Throwable error) {
-            result.append("failed: ").append(error.getClass().getSimpleName());
+            append("backend unavailable: ");
+            append(error.getClass().getSimpleName());
             if (error.getMessage() != null) {
-                result.append(": ").append(error.getMessage());
+                append(": ");
+                append(error.getMessage());
             }
-            result.append('\n');
+            append('\n');
+            Log.w(TAG, api.name() + " backend probe failed", error);
         }
+    }
+
+    private void append(String text) {
+        result.append(text);
+        output.setText(result.toString());
+    }
+
+    private void append(char value) {
+        result.append(value);
+        output.setText(result.toString());
     }
 }

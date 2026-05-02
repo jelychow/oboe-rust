@@ -3,6 +3,7 @@ name = "oboe-jni"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
+publish = false
 
 [dependencies]
 oboe-android = { path = "../oboe-android" }
