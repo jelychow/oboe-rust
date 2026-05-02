@@ -1,11 +1,13 @@
-Oboe documentation
-===
-- [Android Audio History](AndroidAudioHistory.md)
-- [API reference](https://google.github.io/oboe/)
-- [Apps using Oboe](https://github.com/google/oboe/wiki/AppsUsingOboe)
-- [FAQs](FAQ.md)
-- [Full Guide to Oboe](FullGuide.md)
-- [Getting Started with Oboe](GettingStarted.md)
-- [Privacy Policy](PrivacyPolicy.md)
-- [Releases](https://github.com/google/oboe/releases)
-- [Wiki](https://github.com/google/oboe/wiki)
+# Rust-Native Oboe Docs
+
+The active repository surface is Rust plus the Android Java/JNI wrapper.
+
+## Active Paths
+
+- `../rust/oboe-core`: core stream, builder, FIFO, format, resampler, callback, and extension state.
+- `../rust/oboe-android`: Android AAudio and OpenSL ES backend bindings.
+- `../rust/oboe-jni`: JNI entry points exposed to Java.
+- `../android/oboe-wrapper`: Java wrapper project and smoke tests.
+- `../tools/build-rust-android.ps1`: Android ABI build helper.
+
+Legacy C++ headers, implementation, sample apps, CMake build files, Doxygen workflow, and C++ test runner were removed during the Rust-native migration.

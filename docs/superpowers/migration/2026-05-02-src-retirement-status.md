@@ -1,14 +1,24 @@
-# src Retirement Status
+# Legacy C++ Removal Status
 
-The Rust-native Android wrapper is the main implementation path.
+The repository no longer keeps the legacy C++ implementation as a reference or build target.
 
-| `src` subtree | Status | Replacement |
-| --- | --- | --- |
-| `src/common` | legacy-reference | `rust/oboe-core/src` |
-| `src/fifo` | legacy-reference | `rust/oboe-core/src/fifo.rs` |
-| `src/flowgraph` | legacy-reference | `rust/oboe-core/src/flowgraph.rs`, `rust/oboe-core/src/resampler.rs` |
-| `src/aaudio` | legacy-reference | `rust/oboe-android/src/aaudio.rs` |
-| `src/opensles` | legacy-reference | `rust/oboe-android/src/opensles.rs` |
-| `src/rust` | legacy-reference | `rust/oboe-jni/src/lib.rs` |
+Removed paths:
 
-No new feature work should target these C++ implementation files.
+- `src`
+- `include`
+- `apps`
+- `samples`
+- `tests`
+- `prefab`
+- root `CMakeLists.txt`
+- `rust/oboe_rust_core`
+
+Remaining supported paths:
+
+- `rust/oboe-core`
+- `rust/oboe-android`
+- `rust/oboe-jni`
+- `android/oboe-wrapper`
+- `tools/build-rust-android.ps1`
+
+New functionality should target the Rust workspace first, then expose Java/JNI wrapper APIs as needed.

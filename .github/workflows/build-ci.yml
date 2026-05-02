@@ -2,45 +2,44 @@ name: Build CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
-
-permissions:
-  contents: write
-  security-events: write
+    branches: [main]
 
 jobs:
-  build:
+  rust-and-wrapper:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v6
-    - name: set up JDK 18
-      uses: actions/setup-java@v5
-      with:
-        distribution: 'temurin'
-        java-version: 18
+      - uses: actions/checkout@v6
 
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v4
-    
-    - name: build samples and apps
-      uses: github/codeql-action/init@v4
-      with:
-        languages: cpp
-    - run: |
-        pushd samples
-        chmod +x gradlew
-        ./gradlew -q clean bundleDebug
-        popd
-        pushd apps/OboeTester
-        chmod +x gradlew
-        ./gradlew -q clean bundleDebug
-        popd
-        pushd apps/fxlab
-        chmod +x gradlew
-        ./gradlew -q clean bundleDebug
-        popd
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+
+      - name: Lint Rust
+        run: cargo clippy --manifest-path rust/Cargo.toml --workspace --tests -- -D warnings
+
+      - name: Test Rust
+        run: cargo test --manifest-path rust/Cargo.toml
+
+      - name: Check Android Rust targets
+        run: |
+          for target in aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android; do
+            cargo check --manifest-path rust/Cargo.toml -p oboe-jni --target "$target"
+          done
+
+      - name: Compile Java wrapper
+        run: |
+          mkdir -p build/javac-oboe-wrapper
+          javac -Xlint:all -d build/javac-oboe-wrapper android/oboe-wrapper/oboe-wrapper/src/main/java/com/google/oboe/*.java
