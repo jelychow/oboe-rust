@@ -19,6 +19,9 @@
 
 #include "FlowGraphNode.h"
 #include "SourceI16.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 #if FLOWGRAPH_ANDROID_INTERNAL
 #include <audio_utils/primitives.h>
@@ -41,7 +44,9 @@ int32_t SourceI16::onProcess(int32_t numFrames) {
     const int16_t *shortBase = static_cast<const int16_t *>(mData);
     const int16_t *shortData = &shortBase[mFrameIndex * channelCount];
 
-#if FLOWGRAPH_ANDROID_INTERNAL
+#if OBOE_USE_RUST_CORE
+    oboe_rust_source_i16_to_float(shortData, floatData, numSamples);
+#elif FLOWGRAPH_ANDROID_INTERNAL
     memcpy_to_float_from_i16(floatData, shortData, numSamples);
 #else
     for (int i = 0; i < numSamples; i++) {

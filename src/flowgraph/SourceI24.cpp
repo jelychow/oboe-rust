@@ -19,6 +19,9 @@
 
 #include "FlowGraphNode.h"
 #include "SourceI24.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 #if FLOWGRAPH_ANDROID_INTERNAL
 #include <audio_utils/primitives.h>
@@ -43,7 +46,9 @@ int32_t SourceI24::onProcess(int32_t numFrames) {
     const uint8_t *byteBase = (uint8_t *) mData;
     const uint8_t *byteData = &byteBase[mFrameIndex * channelCount * kBytesPerI24Packed];
 
-#if FLOWGRAPH_ANDROID_INTERNAL
+#if OBOE_USE_RUST_CORE
+    oboe_rust_source_i24_to_float(byteData, floatData, numSamples);
+#elif FLOWGRAPH_ANDROID_INTERNAL
     memcpy_to_float_from_p24(floatData, byteData, numSamples);
 #else
     static const float scale = 1. / (float)(1UL << 31);

@@ -25,6 +25,9 @@
 #include "oboe/AudioClock.h"
 #include "oboe/Utilities.h"
 #include "AAudioExtensions.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 #ifdef __ANDROID__
 #include <sys/system_properties.h>
@@ -257,6 +260,548 @@ static void oboe_aaudio_routing_changed_thread_proc_shared(
     LOGD("%s() - exiting <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<", __func__);
 }
 
+#if OBOE_USE_RUST_CORE
+static int32_t rust_aaudio_create_stream_builder(void **builder) {
+    AAudioStreamBuilder *aaudioBuilder = nullptr;
+    int32_t result = AAudioLoader::getInstance()->createStreamBuilder(&aaudioBuilder);
+    *builder = aaudioBuilder;
+    return result;
+}
+
+static int32_t rust_aaudio_builder_open_stream(void *builder, void **stream) {
+    AAudioStream *aaudioStream = nullptr;
+    int32_t result = AAudioLoader::getInstance()->builder_openStream(
+            reinterpret_cast<AAudioStreamBuilder *>(builder), &aaudioStream);
+    *stream = aaudioStream;
+    return result;
+}
+
+static int32_t rust_aaudio_builder_delete(void *builder) {
+    return AAudioLoader::getInstance()->builder_delete(
+            reinterpret_cast<AAudioStreamBuilder *>(builder));
+}
+
+static void rust_aaudio_builder_set_buffer_capacity(void *builder, int32_t value) {
+    AAudioLoader::getInstance()->builder_setBufferCapacityInFrames(
+            reinterpret_cast<AAudioStreamBuilder *>(builder), value);
+}
+
+static void rust_aaudio_builder_set_channel_count(void *builder, int32_t value) {
+    AAudioLoader::getInstance()->builder_setChannelCount(
+            reinterpret_cast<AAudioStreamBuilder *>(builder), value);
+}
+
+static void rust_aaudio_builder_set_device_id(void *builder, int32_t value) {
+    AAudioLoader::getInstance()->builder_setDeviceId(
+            reinterpret_cast<AAudioStreamBuilder *>(builder), value);
+}
+
+static void rust_aaudio_builder_set_direction(void *builder, int32_t value) {
+    AAudioLoader::getInstance()->builder_setDirection(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            static_cast<aaudio_direction_t>(value));
+}
+
+static void rust_aaudio_builder_set_format(void *builder, int32_t value) {
+    AAudioLoader::getInstance()->builder_setFormat(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            static_cast<aaudio_format_t>(value));
+}
+
+static void rust_aaudio_builder_set_frames_per_data_callback(void *builder, int32_t value) {
+    AAudioLoader::getInstance()->builder_setFramesPerDataCallback(
+            reinterpret_cast<AAudioStreamBuilder *>(builder), value);
+}
+
+static void rust_aaudio_builder_set_performance_mode(void *builder, int32_t value) {
+    AAudioLoader::getInstance()->builder_setPerformanceMode(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            static_cast<aaudio_performance_mode_t>(value));
+}
+
+static void rust_aaudio_builder_set_sample_rate(void *builder, int32_t value) {
+    AAudioLoader::getInstance()->builder_setSampleRate(
+            reinterpret_cast<AAudioStreamBuilder *>(builder), value);
+}
+
+static void rust_aaudio_builder_set_sharing_mode(void *builder, int32_t value) {
+    AAudioLoader::getInstance()->builder_setSharingMode(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            static_cast<aaudio_sharing_mode_t>(value));
+}
+
+static void rust_aaudio_builder_set_channel_mask(void *builder, uint32_t value) {
+    AAudioLoader::getInstance()->builder_setChannelMask(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            static_cast<aaudio_channel_mask_t>(value));
+}
+
+static void rust_aaudio_builder_set_usage(void *builder, int32_t value) {
+    AAudioLoader::getInstance()->builder_setUsage(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            static_cast<aaudio_usage_t>(value));
+}
+
+static void rust_aaudio_builder_set_content_type(void *builder, int32_t value) {
+    AAudioLoader::getInstance()->builder_setContentType(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            static_cast<aaudio_content_type_t>(value));
+}
+
+static void rust_aaudio_builder_set_input_preset(void *builder, int32_t value) {
+    AAudioLoader::getInstance()->builder_setInputPreset(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            static_cast<aaudio_input_preset_t>(value));
+}
+
+static void rust_aaudio_builder_set_session_id(void *builder, int32_t value) {
+    AAudioLoader::getInstance()->builder_setSessionId(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            static_cast<aaudio_session_id_t>(value));
+}
+
+static void rust_aaudio_builder_set_privacy_sensitive(void *builder, bool value) {
+    AAudioLoader::getInstance()->builder_setPrivacySensitive(
+            reinterpret_cast<AAudioStreamBuilder *>(builder), value);
+}
+
+static void rust_aaudio_builder_set_allowed_capture_policy(void *builder, int32_t value) {
+    AAudioLoader::getInstance()->builder_setAllowedCapturePolicy(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            static_cast<aaudio_allowed_capture_policy_t>(value));
+}
+
+static void rust_aaudio_builder_set_package_name(void *builder, const char *value) {
+    AAudioLoader::getInstance()->builder_setPackageName(
+            reinterpret_cast<AAudioStreamBuilder *>(builder), value);
+}
+
+static void rust_aaudio_builder_set_attribution_tag(void *builder, const char *value) {
+    AAudioLoader::getInstance()->builder_setAttributionTag(
+            reinterpret_cast<AAudioStreamBuilder *>(builder), value);
+}
+
+static void rust_aaudio_builder_set_is_content_spatialized(void *builder, bool value) {
+    AAudioLoader::getInstance()->builder_setIsContentSpatialized(
+            reinterpret_cast<AAudioStreamBuilder *>(builder), value);
+}
+
+static void rust_aaudio_builder_set_spatialization_behavior(void *builder, int32_t value) {
+    AAudioLoader::getInstance()->builder_setSpatializationBehavior(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            static_cast<aaudio_spatialization_behavior_t>(value));
+}
+
+static void rust_aaudio_builder_set_data_callback(
+        void *builder, OboeRustAAudioDataCallback callback, void *userData) {
+    AAudioLoader::getInstance()->builder_setDataCallback(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            reinterpret_cast<AAudioStream_dataCallback>(callback),
+            userData);
+}
+
+static void rust_aaudio_builder_set_error_callback(
+        void *builder, OboeRustAAudioErrorCallback callback, void *userData) {
+    AAudioLoader::getInstance()->builder_setErrorCallback(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            reinterpret_cast<AAudioStream_errorCallback>(callback),
+            userData);
+}
+
+static void rust_aaudio_builder_set_partial_data_callback(
+        void *builder, OboeRustAAudioPartialDataCallback callback, void *userData) {
+    AAudioLoader::getInstance()->builder_setPartialDataCallback(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            reinterpret_cast<AAudioStream_partialDataCallback>(callback),
+            userData);
+}
+
+static void rust_aaudio_builder_set_presentation_end_callback(
+        void *builder, OboeRustAAudioPresentationCallback callback, void *userData) {
+    AAudioLoader::getInstance()->builder_setPresentationEndCallback(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            reinterpret_cast<AAudioStream_presentationEndCallback>(callback),
+            userData);
+}
+
+static void rust_aaudio_builder_set_routing_changed_callback(
+        void *builder, OboeRustAAudioRoutingChangedCallback callback, void *userData) {
+    AAudioLoader::getInstance()->builder_setRoutingChangedCallback(
+            reinterpret_cast<AAudioStreamBuilder *>(builder),
+            reinterpret_cast<AAudioStream_routingChangedCallback>(callback),
+            userData);
+}
+
+static int32_t rust_aaudio_stream_close(void *stream) {
+    return AAudioLoader::getInstance()->stream_close(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_release(void *stream) {
+    return AAudioLoader::getInstance()->stream_release(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_request_start(void *stream) {
+    return AAudioLoader::getInstance()->stream_requestStart(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_request_pause(void *stream) {
+    return AAudioLoader::getInstance()->stream_requestPause(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_request_flush(void *stream) {
+    return AAudioLoader::getInstance()->stream_requestFlush(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_request_stop(void *stream) {
+    return AAudioLoader::getInstance()->stream_requestStop(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_write(
+        void *stream, const void *buffer, int32_t numFrames, int64_t timeoutNanoseconds) {
+    return AAudioLoader::getInstance()->stream_write(
+            reinterpret_cast<AAudioStream *>(stream), buffer, numFrames, timeoutNanoseconds);
+}
+
+static int32_t rust_aaudio_stream_read(
+        void *stream, void *buffer, int32_t numFrames, int64_t timeoutNanoseconds) {
+    return AAudioLoader::getInstance()->stream_read(
+            reinterpret_cast<AAudioStream *>(stream), buffer, numFrames, timeoutNanoseconds);
+}
+
+static int32_t rust_aaudio_stream_wait_for_state_change(
+        void *stream, int32_t currentState, int32_t *nextState, int64_t timeoutNanoseconds) {
+    return AAudioLoader::getInstance()->stream_waitForStateChange(
+            reinterpret_cast<AAudioStream *>(stream),
+            static_cast<aaudio_stream_state_t>(currentState),
+            reinterpret_cast<aaudio_stream_state_t *>(nextState),
+            timeoutNanoseconds);
+}
+
+static int32_t rust_aaudio_stream_get_timestamp(
+        void *stream, int32_t clockId, int64_t *framePosition, int64_t *timeNanoseconds) {
+    return AAudioLoader::getInstance()->stream_getTimestamp(
+            reinterpret_cast<AAudioStream *>(stream),
+            static_cast<clockid_t>(clockId),
+            framePosition,
+            timeNanoseconds);
+}
+
+static int32_t rust_aaudio_stream_set_buffer_size(void *stream, int32_t requestedFrames) {
+    return AAudioLoader::getInstance()->stream_setBufferSize(
+            reinterpret_cast<AAudioStream *>(stream), requestedFrames);
+}
+
+static int32_t rust_aaudio_stream_get_channel_count(void *stream) {
+    return AAudioLoader::getInstance()->stream_getChannelCount(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_device_id(void *stream) {
+    return AAudioLoader::getInstance()->stream_getDeviceId(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_format(void *stream) {
+    return static_cast<int32_t>(
+            AAudioLoader::getInstance()->stream_getFormat(reinterpret_cast<AAudioStream *>(stream)));
+}
+
+static int32_t rust_aaudio_stream_get_sample_rate(void *stream) {
+    return AAudioLoader::getInstance()->stream_getSampleRate(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_sharing_mode(void *stream) {
+    return AAudioLoader::getInstance()->stream_getSharingMode(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_performance_mode(void *stream) {
+    return AAudioLoader::getInstance()->stream_getPerformanceMode(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_buffer_capacity(void *stream) {
+    return AAudioLoader::getInstance()->stream_getBufferCapacity(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_buffer_size(void *stream) {
+    return AAudioLoader::getInstance()->stream_getBufferSize(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_frames_per_burst(void *stream) {
+    return AAudioLoader::getInstance()->stream_getFramesPerBurst(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_state(void *stream) {
+    return AAudioLoader::getInstance()->stream_getState(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_xrun_count(void *stream) {
+    return AAudioLoader::getInstance()->stream_getXRunCount(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int64_t rust_aaudio_stream_get_frames_read(void *stream) {
+    return AAudioLoader::getInstance()->stream_getFramesRead(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int64_t rust_aaudio_stream_get_frames_written(void *stream) {
+    return AAudioLoader::getInstance()->stream_getFramesWritten(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_usage(void *stream) {
+    return AAudioLoader::getInstance()->stream_getUsage(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_content_type(void *stream) {
+    return AAudioLoader::getInstance()->stream_getContentType(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_input_preset(void *stream) {
+    return AAudioLoader::getInstance()->stream_getInputPreset(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_session_id(void *stream) {
+    return AAudioLoader::getInstance()->stream_getSessionId(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static bool rust_aaudio_stream_is_privacy_sensitive(void *stream) {
+    return AAudioLoader::getInstance()->stream_isPrivacySensitive(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_allowed_capture_policy(void *stream) {
+    return AAudioLoader::getInstance()->stream_getAllowedCapturePolicy(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static uint32_t rust_aaudio_stream_get_channel_mask(void *stream) {
+    return AAudioLoader::getInstance()->stream_getChannelMask(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static bool rust_aaudio_stream_is_content_spatialized(void *stream) {
+    return AAudioLoader::getInstance()->stream_isContentSpatialized(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_spatialization_behavior(void *stream) {
+    return AAudioLoader::getInstance()->stream_getSpatializationBehavior(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_hardware_channel_count(void *stream) {
+    return AAudioLoader::getInstance()->stream_getHardwareChannelCount(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_hardware_sample_rate(void *stream) {
+    return AAudioLoader::getInstance()->stream_getHardwareSampleRate(reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_hardware_format(void *stream) {
+    return static_cast<int32_t>(
+            AAudioLoader::getInstance()->stream_getHardwareFormat(reinterpret_cast<AAudioStream *>(stream)));
+}
+
+static int32_t rust_aaudio_stream_set_offload_delay_padding(
+        void *stream, int32_t delayInFrames, int32_t paddingInFrames) {
+    return AAudioLoader::getInstance()->stream_setOffloadDelayPadding(
+            reinterpret_cast<AAudioStream *>(stream), delayInFrames, paddingInFrames);
+}
+
+static int32_t rust_aaudio_stream_get_offload_delay(void *stream) {
+    return AAudioLoader::getInstance()->stream_getOffloadDelay(
+            reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_get_offload_padding(void *stream) {
+    return AAudioLoader::getInstance()->stream_getOffloadPadding(
+            reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_set_offload_end_of_stream(void *stream) {
+    return AAudioLoader::getInstance()->stream_setOffloadEndOfStream(
+            reinterpret_cast<AAudioStream *>(stream));
+}
+
+static int32_t rust_aaudio_stream_flush_from_frame(
+        void *stream, int32_t accuracy, int64_t *positionInFrames) {
+    return AAudioLoader::getInstance()->stream_flushFromFrame(
+            reinterpret_cast<AAudioStream *>(stream), accuracy, positionInFrames);
+}
+
+static int32_t rust_aaudio_stream_get_playback_parameters(
+        void *stream, OboeRustAAudioPlaybackParameters *parameters) {
+    AAudioPlaybackParameters aaudioParameters;
+    int32_t result = AAudioLoader::getInstance()->stream_getPlaybackParameters(
+            reinterpret_cast<AAudioStream *>(stream), &aaudioParameters);
+    if (result == AAUDIO_OK && parameters != nullptr) {
+        parameters->fallback_mode = static_cast<int32_t>(aaudioParameters.fallbackMode);
+        parameters->stretch_mode = static_cast<int32_t>(aaudioParameters.stretchMode);
+        parameters->pitch = aaudioParameters.pitch;
+        parameters->speed = aaudioParameters.speed;
+    }
+    return result;
+}
+
+static int32_t rust_aaudio_stream_set_playback_parameters(
+        void *stream, const OboeRustAAudioPlaybackParameters *parameters) {
+    AAudioPlaybackParameters aaudioParameters = {};
+    if (parameters != nullptr) {
+        aaudioParameters.fallbackMode = static_cast<AAudio_FallbackMode>(
+                parameters->fallback_mode);
+        aaudioParameters.stretchMode = static_cast<AAudio_StretchMode>(
+                parameters->stretch_mode);
+        aaudioParameters.pitch = parameters->pitch;
+        aaudioParameters.speed = parameters->speed;
+    }
+    return AAudioLoader::getInstance()->stream_setPlaybackParameters(
+            reinterpret_cast<AAudioStream *>(stream), &aaudioParameters);
+}
+
+static OboeRustAAudioPlatform makeRustAAudioPlatform(AAudioLoader *loader) {
+    OboeRustAAudioPlatform platform = {};
+    platform.create_stream_builder = rust_aaudio_create_stream_builder;
+    platform.builder_open_stream = rust_aaudio_builder_open_stream;
+    platform.builder_delete = rust_aaudio_builder_delete;
+    platform.builder_set_buffer_capacity_in_frames = rust_aaudio_builder_set_buffer_capacity;
+    platform.builder_set_channel_count = rust_aaudio_builder_set_channel_count;
+    platform.builder_set_device_id = rust_aaudio_builder_set_device_id;
+    platform.builder_set_direction = rust_aaudio_builder_set_direction;
+    platform.builder_set_format = rust_aaudio_builder_set_format;
+    platform.builder_set_frames_per_data_callback = rust_aaudio_builder_set_frames_per_data_callback;
+    platform.builder_set_performance_mode = rust_aaudio_builder_set_performance_mode;
+    platform.builder_set_sample_rate = rust_aaudio_builder_set_sample_rate;
+    platform.builder_set_sharing_mode = rust_aaudio_builder_set_sharing_mode;
+    if (loader->builder_setChannelMask != nullptr) {
+        platform.builder_set_channel_mask = rust_aaudio_builder_set_channel_mask;
+    }
+    if (loader->builder_setUsage != nullptr) {
+        platform.builder_set_usage = rust_aaudio_builder_set_usage;
+    }
+    if (loader->builder_setContentType != nullptr) {
+        platform.builder_set_content_type = rust_aaudio_builder_set_content_type;
+    }
+    if (loader->builder_setInputPreset != nullptr) {
+        platform.builder_set_input_preset = rust_aaudio_builder_set_input_preset;
+    }
+    if (loader->builder_setSessionId != nullptr) {
+        platform.builder_set_session_id = rust_aaudio_builder_set_session_id;
+    }
+    if (loader->builder_setPrivacySensitive != nullptr) {
+        platform.builder_set_privacy_sensitive = rust_aaudio_builder_set_privacy_sensitive;
+    }
+    if (loader->builder_setAllowedCapturePolicy != nullptr) {
+        platform.builder_set_allowed_capture_policy = rust_aaudio_builder_set_allowed_capture_policy;
+    }
+    if (loader->builder_setPackageName != nullptr) {
+        platform.builder_set_package_name = rust_aaudio_builder_set_package_name;
+    }
+    if (loader->builder_setAttributionTag != nullptr) {
+        platform.builder_set_attribution_tag = rust_aaudio_builder_set_attribution_tag;
+    }
+    if (loader->builder_setIsContentSpatialized != nullptr) {
+        platform.builder_set_is_content_spatialized = rust_aaudio_builder_set_is_content_spatialized;
+    }
+    if (loader->builder_setSpatializationBehavior != nullptr) {
+        platform.builder_set_spatialization_behavior = rust_aaudio_builder_set_spatialization_behavior;
+    }
+    if (loader->builder_setDataCallback != nullptr) {
+        platform.builder_set_data_callback = rust_aaudio_builder_set_data_callback;
+    }
+    if (loader->builder_setErrorCallback != nullptr) {
+        platform.builder_set_error_callback = rust_aaudio_builder_set_error_callback;
+    }
+    if (loader->builder_setPartialDataCallback != nullptr) {
+        platform.builder_set_partial_data_callback = rust_aaudio_builder_set_partial_data_callback;
+    }
+    if (loader->builder_setPresentationEndCallback != nullptr) {
+        platform.builder_set_presentation_end_callback =
+                rust_aaudio_builder_set_presentation_end_callback;
+    }
+    if (loader->builder_setRoutingChangedCallback != nullptr) {
+        platform.builder_set_routing_changed_callback =
+                rust_aaudio_builder_set_routing_changed_callback;
+    }
+    platform.stream_close = rust_aaudio_stream_close;
+    if (loader->stream_release != nullptr) {
+        platform.stream_release = rust_aaudio_stream_release;
+    }
+    platform.stream_request_start = rust_aaudio_stream_request_start;
+    platform.stream_request_pause = rust_aaudio_stream_request_pause;
+    platform.stream_request_flush = rust_aaudio_stream_request_flush;
+    platform.stream_request_stop = rust_aaudio_stream_request_stop;
+    platform.stream_write = rust_aaudio_stream_write;
+    platform.stream_read = rust_aaudio_stream_read;
+    platform.stream_wait_for_state_change = rust_aaudio_stream_wait_for_state_change;
+    platform.stream_get_timestamp = rust_aaudio_stream_get_timestamp;
+    platform.stream_set_buffer_size = rust_aaudio_stream_set_buffer_size;
+    platform.stream_get_channel_count = rust_aaudio_stream_get_channel_count;
+    platform.stream_get_device_id = rust_aaudio_stream_get_device_id;
+    platform.stream_get_format = rust_aaudio_stream_get_format;
+    platform.stream_get_sample_rate = rust_aaudio_stream_get_sample_rate;
+    platform.stream_get_sharing_mode = rust_aaudio_stream_get_sharing_mode;
+    platform.stream_get_performance_mode = rust_aaudio_stream_get_performance_mode;
+    platform.stream_get_buffer_capacity = rust_aaudio_stream_get_buffer_capacity;
+    platform.stream_get_buffer_size = rust_aaudio_stream_get_buffer_size;
+    platform.stream_get_frames_per_burst = rust_aaudio_stream_get_frames_per_burst;
+    platform.stream_get_state = rust_aaudio_stream_get_state;
+    platform.stream_get_xrun_count = rust_aaudio_stream_get_xrun_count;
+    platform.stream_get_frames_read = rust_aaudio_stream_get_frames_read;
+    platform.stream_get_frames_written = rust_aaudio_stream_get_frames_written;
+    if (loader->stream_getUsage != nullptr) {
+        platform.stream_get_usage = rust_aaudio_stream_get_usage;
+    }
+    if (loader->stream_getContentType != nullptr) {
+        platform.stream_get_content_type = rust_aaudio_stream_get_content_type;
+    }
+    if (loader->stream_getInputPreset != nullptr) {
+        platform.stream_get_input_preset = rust_aaudio_stream_get_input_preset;
+    }
+    if (loader->stream_getSessionId != nullptr) {
+        platform.stream_get_session_id = rust_aaudio_stream_get_session_id;
+    }
+    if (loader->stream_isPrivacySensitive != nullptr) {
+        platform.stream_is_privacy_sensitive = rust_aaudio_stream_is_privacy_sensitive;
+    }
+    if (loader->stream_getAllowedCapturePolicy != nullptr) {
+        platform.stream_get_allowed_capture_policy = rust_aaudio_stream_get_allowed_capture_policy;
+    }
+    if (loader->stream_getChannelMask != nullptr) {
+        platform.stream_get_channel_mask = rust_aaudio_stream_get_channel_mask;
+    }
+    if (loader->stream_isContentSpatialized != nullptr) {
+        platform.stream_is_content_spatialized = rust_aaudio_stream_is_content_spatialized;
+    }
+    if (loader->stream_getSpatializationBehavior != nullptr) {
+        platform.stream_get_spatialization_behavior = rust_aaudio_stream_get_spatialization_behavior;
+    }
+    if (loader->stream_getHardwareChannelCount != nullptr) {
+        platform.stream_get_hardware_channel_count = rust_aaudio_stream_get_hardware_channel_count;
+    }
+    if (loader->stream_getHardwareSampleRate != nullptr) {
+        platform.stream_get_hardware_sample_rate = rust_aaudio_stream_get_hardware_sample_rate;
+    }
+    if (loader->stream_getHardwareFormat != nullptr) {
+        platform.stream_get_hardware_format = rust_aaudio_stream_get_hardware_format;
+    }
+    if (loader->stream_setOffloadDelayPadding != nullptr) {
+        platform.stream_set_offload_delay_padding =
+                rust_aaudio_stream_set_offload_delay_padding;
+    }
+    if (loader->stream_getOffloadDelay != nullptr) {
+        platform.stream_get_offload_delay = rust_aaudio_stream_get_offload_delay;
+    }
+    if (loader->stream_getOffloadPadding != nullptr) {
+        platform.stream_get_offload_padding = rust_aaudio_stream_get_offload_padding;
+    }
+    if (loader->stream_setOffloadEndOfStream != nullptr) {
+        platform.stream_set_offload_end_of_stream =
+                rust_aaudio_stream_set_offload_end_of_stream;
+    }
+    if (loader->stream_flushFromFrame != nullptr) {
+        platform.stream_flush_from_frame = rust_aaudio_stream_flush_from_frame;
+    }
+    if (loader->stream_getPlaybackParameters != nullptr) {
+        platform.stream_get_playback_parameters = rust_aaudio_stream_get_playback_parameters;
+    }
+    if (loader->stream_setPlaybackParameters != nullptr) {
+        platform.stream_set_playback_parameters = rust_aaudio_stream_set_playback_parameters;
+    }
+    return platform;
+}
+#endif
+
 namespace oboe {
 
 /*
@@ -267,6 +812,21 @@ AudioStreamAAudio::AudioStreamAAudio(const AudioStreamBuilder &builder)
     , mAAudioStream(nullptr) {
     mCallbackThreadEnabled.store(false);
     mLibLoader = AAudioLoader::getInstance();
+}
+
+AudioStreamAAudio::~AudioStreamAAudio() {
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        oboe_rust_aaudio_output_destroy(mRustAAudioOutputStream);
+        mRustAAudioOutputStream = nullptr;
+        mAAudioStream.store(nullptr);
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        oboe_rust_aaudio_input_destroy(mRustAAudioInputStream);
+        mRustAAudioInputStream = nullptr;
+        mAAudioStream.store(nullptr);
+    }
+#endif
 }
 
 bool AudioStreamAAudio::isSupported() {
@@ -378,7 +938,309 @@ void AudioStreamAAudio::logUnsupportedAttributes() {
     }
 }
 
+#if OBOE_USE_RUST_CORE
+Result AudioStreamAAudio::openRustOutput() {
+    if (mAAudioStream != nullptr || mRustAAudioOutputStream != nullptr) {
+        return Result::ErrorInvalidState;
+    }
+
+    Result result = AudioStream::open();
+    if (result != Result::OK) {
+        return result;
+    }
+
+    logUnsupportedAttributes();
+
+    if (mLibLoader->builder_setSessionId != nullptr) {
+        mPerformanceMode = static_cast<PerformanceMode>(
+                oboe_rust_aaudio_session_performance_mode(
+                        static_cast<int32_t>(mPerformanceMode),
+                        static_cast<int32_t>(mSessionId),
+                        static_cast<int32_t>(SessionId::None),
+                        static_cast<int32_t>(mDirection),
+                        static_cast<int32_t>(Direction::Output),
+                        static_cast<int32_t>(PerformanceMode::LowLatency),
+                        static_cast<int32_t>(PerformanceMode::None),
+                        OboeGlobals::areWorkaroundsEnabled()));
+    }
+
+    mSpatializationBehavior = static_cast<SpatializationBehavior>(
+            oboe_rust_aaudio_spatialization_behavior(
+                    static_cast<int32_t>(mSpatializationBehavior),
+                    static_cast<int32_t>(SpatializationBehavior::Unspecified),
+                    static_cast<int32_t>(SpatializationBehavior::Never),
+                    mLibLoader->builder_setSpatializationBehavior != nullptr));
+
+    if (anyDataCallbackSpecified() && !isErrorCallbackSpecified()) {
+        mErrorCallback = &mDefaultErrorCallback;
+    }
+    if (isPartialDataCallbackSpecified() && mLibLoader->builder_setPartialDataCallback == nullptr) {
+        LOGE("Using partial data callback while it is not available");
+        return Result::ErrorIllegalArgument;
+    }
+
+    OboeRustAAudioPlatform platform = makeRustAAudioPlatform(mLibLoader);
+    OboeRustAAudioOutputSettings settings = {};
+    settings.direction = static_cast<int32_t>(mDirection);
+    settings.device_id = AudioStreamBase::getDeviceId();
+    settings.sample_rate = mSampleRate;
+    settings.channel_count = mChannelCount;
+    settings.channel_mask = static_cast<uint32_t>(mChannelMask);
+    settings.format = static_cast<int32_t>(mFormat);
+    settings.sharing_mode = static_cast<int32_t>(mSharingMode);
+    settings.performance_mode = static_cast<int32_t>(mPerformanceMode);
+    settings.buffer_capacity_in_frames = mBufferCapacityInFrames;
+    settings.frames_per_data_callback = getFramesPerDataCallback();
+    settings.session_id = static_cast<int32_t>(mSessionId);
+    settings.usage = static_cast<int32_t>(mUsage);
+    settings.content_type = static_cast<int32_t>(mContentType);
+    settings.allowed_capture_policy = static_cast<int32_t>(mAllowedCapturePolicy);
+    settings.is_content_spatialized = mIsContentSpatialized;
+    settings.spatialization_behavior = static_cast<int32_t>(mSpatializationBehavior);
+    settings.package_name = mPackageName.empty() ? nullptr : mPackageName.c_str();
+    settings.attribution_tag = mAttributionTag.empty() ? nullptr : mAttributionTag.c_str();
+    settings.data_callback = isDataCallbackSpecified()
+            ? reinterpret_cast<OboeRustAAudioDataCallback>(oboe_aaudio_data_callback_proc)
+            : nullptr;
+    settings.error_callback = anyDataCallbackSpecified()
+            ? reinterpret_cast<OboeRustAAudioErrorCallback>(internalErrorCallback)
+            : nullptr;
+    settings.partial_data_callback = isPartialDataCallbackSpecified()
+            ? reinterpret_cast<OboeRustAAudioPartialDataCallback>(
+                    oboe_aaudio_partial_data_callback_proc)
+            : nullptr;
+    settings.presentation_end_callback = isPresentationCallbackSpecified()
+            ? reinterpret_cast<OboeRustAAudioPresentationCallback>(
+                    internalPresentationEndCallback)
+            : nullptr;
+    settings.routing_changed_callback = mLibLoader->builder_setRoutingChangedCallback != nullptr
+            ? reinterpret_cast<OboeRustAAudioRoutingChangedCallback>(
+                    internalRoutingChangedCallback)
+            : nullptr;
+    settings.user_data = this;
+
+    OboeRustAAudioOutputProperties properties = {};
+    mRustAAudioOutputStream = oboe_rust_aaudio_output_open(&platform, &settings, &properties);
+    result = static_cast<Result>(properties.result);
+    if (mRustAAudioOutputStream == nullptr && result == Result::OK) {
+        result = Result::ErrorInternal;
+    }
+    if (mRustAAudioOutputStream == nullptr || result != Result::OK) {
+        if (static_cast<int32_t>(result) > 0) {
+            result = static_cast<Result>(oboe_rust_aaudio_coerce_open_result(
+                    static_cast<int32_t>(result),
+                    OboeGlobals::areWorkaroundsEnabled(),
+                    static_cast<int32_t>(Result::ErrorInternal)));
+        }
+        return result;
+    }
+
+    mAAudioStream.store(reinterpret_cast<AAudioStream *>(properties.raw_stream));
+    mChannelCount = properties.channel_count;
+    mSampleRate = properties.sample_rate;
+    mFormat = static_cast<AudioFormat>(properties.format);
+    mSharingMode = static_cast<SharingMode>(properties.sharing_mode);
+    mPerformanceMode = static_cast<PerformanceMode>(properties.performance_mode);
+    mBufferCapacityInFrames = properties.buffer_capacity_in_frames;
+    mBufferSizeInFrames = properties.buffer_size_in_frames;
+    mFramesPerBurst = properties.frames_per_burst;
+    mUsage = static_cast<Usage>(properties.usage);
+    mContentType = static_cast<ContentType>(properties.content_type);
+    mInputPreset = static_cast<InputPreset>(properties.input_preset);
+    mSessionId = static_cast<SessionId>(properties.session_id);
+    mAllowedCapturePolicy = static_cast<AllowedCapturePolicy>(properties.allowed_capture_policy);
+    mPrivacySensitiveMode = PrivacySensitiveMode::Unspecified;
+    mChannelMask = static_cast<ChannelMask>(properties.channel_mask);
+    mIsContentSpatialized = properties.is_content_spatialized;
+    mSpatializationBehavior = static_cast<SpatializationBehavior>(properties.spatialization_behavior);
+    mHardwareChannelCount = properties.hardware_channel_count;
+    mHardwareSampleRate = properties.hardware_sample_rate;
+    mHardwareFormat = static_cast<AudioFormat>(properties.hardware_format);
+
+    updateDeviceIds();
+    calculateDefaultDelayBeforeCloseMillis();
+    AAudioStreamCollection::getInstance().addStream(this);
+
+    LOGD("AudioStreamAAudio.openRustOutput() format=%d, sampleRate=%d, capacity=%d",
+         static_cast<int>(mFormat), static_cast<int>(mSampleRate),
+         static_cast<int>(mBufferCapacityInFrames));
+    return Result::OK;
+}
+
+Result AudioStreamAAudio::openRustInput() {
+    if (mAAudioStream != nullptr || mRustAAudioInputStream != nullptr) {
+        return Result::ErrorInvalidState;
+    }
+
+    Result result = AudioStream::open();
+    if (result != Result::OK) {
+        return result;
+    }
+
+    logUnsupportedAttributes();
+
+    int32_t capacity = mBufferCapacityInFrames;
+    constexpr int kCapacityRequiredForFastLegacyTrack = 4096;
+    int32_t adjustedCapacity = oboe_rust_aaudio_adjust_input_capacity(
+            capacity,
+            static_cast<int32_t>(mDirection),
+            static_cast<int32_t>(Direction::Input),
+            static_cast<int32_t>(mPerformanceMode),
+            static_cast<int32_t>(PerformanceMode::LowLatency),
+            Unspecified,
+            kCapacityRequiredForFastLegacyTrack,
+            OboeGlobals::areWorkaroundsEnabled());
+    if (adjustedCapacity != capacity) {
+        capacity = adjustedCapacity;
+        LOGD("AudioStreamAAudio.openRustInput() capacity changed from %d to %d for lower latency",
+             static_cast<int>(mBufferCapacityInFrames), capacity);
+    }
+
+    InputPreset inputPreset = mInputPreset;
+    if (mLibLoader->builder_setInputPreset != nullptr) {
+        InputPreset adjustedInputPreset = static_cast<InputPreset>(
+                oboe_rust_aaudio_normalize_input_preset(
+                        static_cast<int32_t>(inputPreset),
+                        getSdkVersion(),
+                        __ANDROID_API_P__,
+                        static_cast<int32_t>(InputPreset::VoicePerformance),
+                        static_cast<int32_t>(InputPreset::VoiceRecognition)));
+        if (adjustedInputPreset != inputPreset) {
+            LOGD("InputPreset::VoicePerformance not supported before Q. Using VoiceRecognition.");
+            inputPreset = adjustedInputPreset;
+        }
+    }
+
+    mSpatializationBehavior = static_cast<SpatializationBehavior>(
+            oboe_rust_aaudio_spatialization_behavior(
+                    static_cast<int32_t>(mSpatializationBehavior),
+                    static_cast<int32_t>(SpatializationBehavior::Unspecified),
+                    static_cast<int32_t>(SpatializationBehavior::Never),
+                    mLibLoader->builder_setSpatializationBehavior != nullptr));
+
+    if (anyDataCallbackSpecified() && !isErrorCallbackSpecified()) {
+        mErrorCallback = &mDefaultErrorCallback;
+    }
+    if (isPartialDataCallbackSpecified() && mLibLoader->builder_setPartialDataCallback == nullptr) {
+        LOGE("Using partial data callback while it is not available");
+        return Result::ErrorIllegalArgument;
+    }
+
+    OboeRustAAudioPlatform platform = makeRustAAudioPlatform(mLibLoader);
+    OboeRustAAudioInputSettings settings = {};
+    settings.direction = static_cast<int32_t>(mDirection);
+    settings.device_id = AudioStreamBase::getDeviceId();
+    settings.sample_rate = mSampleRate;
+    settings.channel_count = mChannelCount;
+    settings.channel_mask = static_cast<uint32_t>(mChannelMask);
+    settings.format = static_cast<int32_t>(mFormat);
+    settings.sharing_mode = static_cast<int32_t>(mSharingMode);
+    settings.performance_mode = static_cast<int32_t>(mPerformanceMode);
+    settings.buffer_capacity_in_frames = capacity;
+    settings.frames_per_data_callback = getFramesPerDataCallback();
+    settings.input_preset = static_cast<int32_t>(inputPreset);
+    settings.privacy_sensitive_mode = static_cast<int32_t>(mPrivacySensitiveMode);
+    settings.privacy_sensitive_mode_unspecified =
+            static_cast<int32_t>(PrivacySensitiveMode::Unspecified);
+    settings.privacy_sensitive_mode_enabled =
+            static_cast<int32_t>(PrivacySensitiveMode::Enabled);
+    settings.privacy_sensitive_mode_disabled =
+            static_cast<int32_t>(PrivacySensitiveMode::Disabled);
+    settings.session_id = static_cast<int32_t>(mSessionId);
+    settings.usage = static_cast<int32_t>(mUsage);
+    settings.content_type = static_cast<int32_t>(mContentType);
+    settings.allowed_capture_policy = static_cast<int32_t>(AllowedCapturePolicy::Unspecified);
+    settings.package_name = mPackageName.empty() ? nullptr : mPackageName.c_str();
+    settings.attribution_tag = mAttributionTag.empty() ? nullptr : mAttributionTag.c_str();
+    settings.is_content_spatialized = mIsContentSpatialized;
+    settings.spatialization_behavior = static_cast<int32_t>(mSpatializationBehavior);
+    settings.data_callback = isDataCallbackSpecified()
+            ? reinterpret_cast<OboeRustAAudioDataCallback>(oboe_aaudio_data_callback_proc)
+            : nullptr;
+    settings.error_callback = anyDataCallbackSpecified()
+            ? reinterpret_cast<OboeRustAAudioErrorCallback>(internalErrorCallback)
+            : nullptr;
+    settings.partial_data_callback = isPartialDataCallbackSpecified()
+            ? reinterpret_cast<OboeRustAAudioPartialDataCallback>(
+                    oboe_aaudio_partial_data_callback_proc)
+            : nullptr;
+    settings.presentation_end_callback = isPresentationCallbackSpecified()
+            ? reinterpret_cast<OboeRustAAudioPresentationCallback>(
+                    internalPresentationEndCallback)
+            : nullptr;
+    settings.routing_changed_callback = mLibLoader->builder_setRoutingChangedCallback != nullptr
+            ? reinterpret_cast<OboeRustAAudioRoutingChangedCallback>(
+                    internalRoutingChangedCallback)
+            : nullptr;
+    settings.user_data = this;
+
+    OboeRustAAudioInputProperties properties = {};
+    mRustAAudioInputStream = oboe_rust_aaudio_input_open(&platform, &settings, &properties);
+    result = static_cast<Result>(properties.result);
+    if (mRustAAudioInputStream == nullptr && result == Result::OK) {
+        result = Result::ErrorInternal;
+    }
+    if (mRustAAudioInputStream == nullptr || result != Result::OK) {
+        if (mRustAAudioInputStream != nullptr) {
+            oboe_rust_aaudio_input_destroy(mRustAAudioInputStream);
+            mRustAAudioInputStream = nullptr;
+        }
+        if (result == Result::ErrorInternal) {
+            LOGW("AudioStreamAAudio.openRustInput() may have failed due to lack of "
+                 "audio recording permission.");
+        }
+        if (static_cast<int32_t>(result) > 0) {
+            result = static_cast<Result>(oboe_rust_aaudio_coerce_open_result(
+                    static_cast<int32_t>(result),
+                    OboeGlobals::areWorkaroundsEnabled(),
+                    static_cast<int32_t>(Result::ErrorInternal)));
+        }
+        return result;
+    }
+
+    mAAudioStream.store(reinterpret_cast<AAudioStream *>(properties.raw_stream));
+    mChannelCount = properties.channel_count;
+    mSampleRate = properties.sample_rate;
+    mFormat = static_cast<AudioFormat>(properties.format);
+    mSharingMode = static_cast<SharingMode>(properties.sharing_mode);
+    mPerformanceMode = static_cast<PerformanceMode>(properties.performance_mode);
+    mBufferCapacityInFrames = properties.buffer_capacity_in_frames;
+    mBufferSizeInFrames = properties.buffer_size_in_frames;
+    mFramesPerBurst = properties.frames_per_burst;
+    mUsage = static_cast<Usage>(properties.usage);
+    mContentType = static_cast<ContentType>(properties.content_type);
+    mInputPreset = static_cast<InputPreset>(properties.input_preset);
+    mSessionId = static_cast<SessionId>(properties.session_id);
+    mAllowedCapturePolicy = static_cast<AllowedCapturePolicy>(properties.allowed_capture_policy);
+    mPrivacySensitiveMode = static_cast<PrivacySensitiveMode>(properties.privacy_sensitive_mode);
+    mChannelMask = static_cast<ChannelMask>(properties.channel_mask);
+    mIsContentSpatialized = properties.is_content_spatialized;
+    mSpatializationBehavior = static_cast<SpatializationBehavior>(properties.spatialization_behavior);
+    mHardwareChannelCount = properties.hardware_channel_count;
+    mHardwareSampleRate = properties.hardware_sample_rate;
+    mHardwareFormat = static_cast<AudioFormat>(properties.hardware_format);
+
+    updateDeviceIds();
+    calculateDefaultDelayBeforeCloseMillis();
+    AAudioStreamCollection::getInstance().addStream(this);
+
+    LOGD("AudioStreamAAudio.openRustInput() format=%d, sampleRate=%d, capacity=%d",
+         static_cast<int>(mFormat), static_cast<int>(mSampleRate),
+         static_cast<int>(mBufferCapacityInFrames));
+    return Result::OK;
+}
+#endif
+
 Result AudioStreamAAudio::open() {
+#if OBOE_USE_RUST_CORE
+    if (mDirection == Direction::Output) {
+        return openRustOutput();
+    }
+    if (mDirection == Direction::Input) {
+        return openRustInput();
+    }
+#endif
+
     Result result = Result::OK;
 
     if (mAAudioStream != nullptr) {
@@ -404,6 +1266,22 @@ Result AudioStreamAAudio::open() {
     // does not increase latency.
     int32_t capacity = mBufferCapacityInFrames;
     constexpr int kCapacityRequiredForFastLegacyTrack = 4096; // matches value in AudioFinger
+#if OBOE_USE_RUST_CORE
+    int32_t adjustedCapacity = oboe_rust_aaudio_adjust_input_capacity(
+            capacity,
+            static_cast<int32_t>(mDirection),
+            static_cast<int32_t>(oboe::Direction::Input),
+            static_cast<int32_t>(mPerformanceMode),
+            static_cast<int32_t>(oboe::PerformanceMode::LowLatency),
+            oboe::Unspecified,
+            kCapacityRequiredForFastLegacyTrack,
+            OboeGlobals::areWorkaroundsEnabled());
+    if (adjustedCapacity != capacity) {
+        capacity = adjustedCapacity;
+        LOGD("AudioStreamAAudio.open() capacity changed from %d to %d for lower latency",
+             static_cast<int>(mBufferCapacityInFrames), capacity);
+    }
+#else
     if (OboeGlobals::areWorkaroundsEnabled()
             && mDirection == oboe::Direction::Input
             && capacity != oboe::Unspecified
@@ -413,12 +1291,30 @@ Result AudioStreamAAudio::open() {
         LOGD("AudioStreamAAudio.open() capacity changed from %d to %d for lower latency",
              static_cast<int>(mBufferCapacityInFrames), capacity);
     }
+#endif
     mLibLoader->builder_setBufferCapacityInFrames(aaudioBuilder, capacity);
 
     if (mLibLoader->builder_setSessionId != nullptr) {
         mLibLoader->builder_setSessionId(aaudioBuilder,
                                          static_cast<aaudio_session_id_t>(mSessionId));
         // Output effects do not support PerformanceMode::LowLatency.
+#if OBOE_USE_RUST_CORE
+        PerformanceMode adjustedPerformanceMode = static_cast<PerformanceMode>(
+                oboe_rust_aaudio_session_performance_mode(
+                        static_cast<int32_t>(mPerformanceMode),
+                        static_cast<int32_t>(mSessionId),
+                        static_cast<int32_t>(SessionId::None),
+                        static_cast<int32_t>(mDirection),
+                        static_cast<int32_t>(oboe::Direction::Output),
+                        static_cast<int32_t>(PerformanceMode::LowLatency),
+                        static_cast<int32_t>(PerformanceMode::None),
+                        OboeGlobals::areWorkaroundsEnabled()));
+        if (adjustedPerformanceMode != mPerformanceMode) {
+            mPerformanceMode = adjustedPerformanceMode;
+            LOGD("AudioStreamAAudio.open() performance mode changed to None when session "
+                 "id is requested");
+        }
+#else
         if (OboeGlobals::areWorkaroundsEnabled()
                 && mSessionId != SessionId::None
                 && mDirection == oboe::Direction::Output
@@ -427,6 +1323,7 @@ Result AudioStreamAAudio::open() {
                     LOGD("AudioStreamAAudio.open() performance mode changed to None when session "
                          "id is requested");
         }
+#endif
     }
 
     // Channel mask was added in SC_V2. Given the corresponding channel count of selected channel
@@ -463,10 +1360,24 @@ Result AudioStreamAAudio::open() {
 
     if (mLibLoader->builder_setInputPreset != nullptr) {
         aaudio_input_preset_t inputPreset = mInputPreset;
+#if OBOE_USE_RUST_CORE
+        aaudio_input_preset_t adjustedInputPreset = static_cast<aaudio_input_preset_t>(
+                oboe_rust_aaudio_normalize_input_preset(
+                        static_cast<int32_t>(inputPreset),
+                        getSdkVersion(),
+                        __ANDROID_API_P__,
+                        static_cast<int32_t>(InputPreset::VoicePerformance),
+                        static_cast<int32_t>(InputPreset::VoiceRecognition)));
+        if (adjustedInputPreset != inputPreset) {
+            LOGD("InputPreset::VoicePerformance not supported before Q. Using VoiceRecognition.");
+            inputPreset = adjustedInputPreset;
+        }
+#else
         if (getSdkVersion() <= __ANDROID_API_P__ && inputPreset == InputPreset::VoicePerformance) {
             LOGD("InputPreset::VoicePerformance not supported before Q. Using VoiceRecognition.");
             inputPreset = InputPreset::VoiceRecognition; // most similar preset
         }
+#endif
         mLibLoader->builder_setInputPreset(aaudioBuilder,
                                            static_cast<aaudio_input_preset_t>(inputPreset));
     }
@@ -500,13 +1411,33 @@ Result AudioStreamAAudio::open() {
 
     if (mLibLoader->builder_setSpatializationBehavior != nullptr) {
         // Override Unspecified as Never to reduce latency.
-        if (mSpatializationBehavior == SpatializationBehavior::Unspecified) {
-            mSpatializationBehavior = SpatializationBehavior::Never;
-        }
+        mSpatializationBehavior = static_cast<SpatializationBehavior>(
+#if OBOE_USE_RUST_CORE
+                oboe_rust_aaudio_spatialization_behavior(
+                        static_cast<int32_t>(mSpatializationBehavior),
+                        static_cast<int32_t>(SpatializationBehavior::Unspecified),
+                        static_cast<int32_t>(SpatializationBehavior::Never),
+                        true)
+#else
+                (mSpatializationBehavior == SpatializationBehavior::Unspecified)
+                        ? static_cast<int32_t>(SpatializationBehavior::Never)
+                        : static_cast<int32_t>(mSpatializationBehavior)
+#endif
+        );
         mLibLoader->builder_setSpatializationBehavior(aaudioBuilder,
                 static_cast<aaudio_spatialization_behavior_t>(mSpatializationBehavior));
     } else {
-        mSpatializationBehavior = SpatializationBehavior::Never;
+        mSpatializationBehavior = static_cast<SpatializationBehavior>(
+#if OBOE_USE_RUST_CORE
+                oboe_rust_aaudio_spatialization_behavior(
+                        static_cast<int32_t>(mSpatializationBehavior),
+                        static_cast<int32_t>(SpatializationBehavior::Unspecified),
+                        static_cast<int32_t>(SpatializationBehavior::Never),
+                        false)
+#else
+                SpatializationBehavior::Never
+#endif
+        );
     }
 
     if (anyDataCallbackSpecified()) {
@@ -642,9 +1573,16 @@ error2:
         // Possibly due to b/267531411
         LOGW("AudioStreamAAudio.open: AAudioStream_Open() returned positive error = %d",
              static_cast<int>(result));
+#if OBOE_USE_RUST_CORE
+        result = static_cast<Result>(oboe_rust_aaudio_coerce_open_result(
+                static_cast<int32_t>(result),
+                OboeGlobals::areWorkaroundsEnabled(),
+                static_cast<int32_t>(Result::ErrorInternal)));
+#else
         if (OboeGlobals::areWorkaroundsEnabled()) {
             result = Result::ErrorInternal; // Coerce to negative error.
         }
+#endif
     } else {
         LOGD("AudioStreamAAudio.open: AAudioStream_Open() returned %s = %d",
              mLibLoader->convertResultToText(static_cast<aaudio_result_t>(result)),
@@ -669,6 +1607,20 @@ Result AudioStreamAAudio::release() {
     }
 
     std::lock_guard<std::mutex> lock(mLock);
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        if (OboeGlobals::areWorkaroundsEnabled()) {
+            requestStop_l(mAAudioStream.load());
+        }
+        return static_cast<Result>(oboe_rust_aaudio_output_release(mRustAAudioOutputStream));
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        if (OboeGlobals::areWorkaroundsEnabled()) {
+            requestStop_l(mAAudioStream.load());
+        }
+        return static_cast<Result>(oboe_rust_aaudio_input_release(mRustAAudioInputStream));
+    }
+#endif
     AAudioStream *stream = mAAudioStream.load();
     if (stream != nullptr) {
         if (OboeGlobals::areWorkaroundsEnabled()) {
@@ -683,6 +1635,49 @@ Result AudioStreamAAudio::release() {
 }
 
 Result AudioStreamAAudio::close() {
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        LOGD("%s(Rust output)", __func__);
+        AAudioStreamCollection::getInstance().removeStream(this);
+        std::lock_guard<std::mutex> lock(mLock);
+        AudioStream::close();
+        {
+            std::unique_lock<std::shared_mutex> lock2(mAAudioStreamLock);
+            mAAudioStream.exchange(nullptr);
+        }
+        if (OboeGlobals::areWorkaroundsEnabled()) {
+            oboe_rust_aaudio_output_request_stop(mRustAAudioOutputStream);
+            sleepBeforeClose();
+        }
+        Result closeResult = static_cast<Result>(
+                oboe_rust_aaudio_output_close(mRustAAudioOutputStream));
+        Result destroyResult = static_cast<Result>(
+                oboe_rust_aaudio_output_destroy(mRustAAudioOutputStream));
+        mRustAAudioOutputStream = nullptr;
+        return closeResult == Result::OK ? destroyResult : closeResult;
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        LOGD("%s(Rust input)", __func__);
+        AAudioStreamCollection::getInstance().removeStream(this);
+        std::lock_guard<std::mutex> lock(mLock);
+        AudioStream::close();
+        {
+            std::unique_lock<std::shared_mutex> lock2(mAAudioStreamLock);
+            mAAudioStream.exchange(nullptr);
+        }
+        if (OboeGlobals::areWorkaroundsEnabled()) {
+            oboe_rust_aaudio_input_request_stop(mRustAAudioInputStream);
+            sleepBeforeClose();
+        }
+        Result closeResult = static_cast<Result>(
+                oboe_rust_aaudio_input_close(mRustAAudioInputStream));
+        Result destroyResult = static_cast<Result>(
+                oboe_rust_aaudio_input_destroy(mRustAAudioInputStream));
+        mRustAAudioInputStream = nullptr;
+        return closeResult == Result::OK ? destroyResult : closeResult;
+    }
+#endif
+
     LOGD("%s", __func__);
     // Always remove the stream from the collection before closing it as after closing, the client
     // will free the resource of the stream.
@@ -743,13 +1738,33 @@ DataCallbackResult AudioStreamAAudio::callOnAudioReady(AAudioStream * /*stream*/
             LOGE("Oboe callback returned unexpected value. Error: %d", static_cast<int>(result));
         }
 
+        const bool shouldLaunchStopThread =
+#if OBOE_USE_RUST_CORE
+                oboe_rust_aaudio_callback_should_launch_stop_thread(
+                        static_cast<int32_t>(result),
+                        OboeGlobals::areWorkaroundsEnabled(),
+                        getSdkVersion(),
+                        __ANDROID_API_R__);
+#else
+                OboeGlobals::areWorkaroundsEnabled() && getSdkVersion() <= __ANDROID_API_R__;
+#endif
         // Returning Stop caused various problems before S. See #1230
-        if (OboeGlobals::areWorkaroundsEnabled() && getSdkVersion() <= __ANDROID_API_R__) {
+        if (shouldLaunchStopThread) {
             launchStopThread();
-            return DataCallbackResult::Continue;
-        } else {
-            return DataCallbackResult::Stop; // OK >= API_S
         }
+        return static_cast<DataCallbackResult>(
+#if OBOE_USE_RUST_CORE
+                oboe_rust_aaudio_callback_return_result(
+                        static_cast<int32_t>(result),
+                        OboeGlobals::areWorkaroundsEnabled(),
+                        getSdkVersion(),
+                        __ANDROID_API_R__)
+#else
+                shouldLaunchStopThread
+                        ? static_cast<int32_t>(DataCallbackResult::Continue)
+                        : static_cast<int32_t>(DataCallbackResult::Stop)
+#endif
+        );
     }
 }
 
@@ -760,13 +1775,47 @@ int32_t AudioStreamAAudio::callOnPartialAudioReady(AAudioStream * /*stream*/,
 }
 
 Result AudioStreamAAudio::requestStart() {
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        std::lock_guard<std::mutex> lock(mLock);
+        if (anyDataCallbackSpecified()) {
+            setDataCallbackEnabled(true);
+        }
+        mStopThreadAllowed = true;
+        closePerformanceHint();
+        return static_cast<Result>(
+                oboe_rust_aaudio_output_request_start(mRustAAudioOutputStream));
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        std::lock_guard<std::mutex> lock(mLock);
+        if (anyDataCallbackSpecified()) {
+            setDataCallbackEnabled(true);
+        }
+        mStopThreadAllowed = true;
+        closePerformanceHint();
+        return static_cast<Result>(
+                oboe_rust_aaudio_input_request_start(mRustAAudioInputStream));
+    }
+#endif
+
     std::lock_guard<std::mutex> lock(mLock);
     AAudioStream *stream = mAAudioStream.load();
     if (stream != nullptr) {
         // Avoid state machine errors in O_MR1.
         if (getSdkVersion() <= __ANDROID_API_O_MR1__) {
             StreamState state = static_cast<StreamState>(mLibLoader->stream_getState(stream));
-            if (state == StreamState::Starting || state == StreamState::Started) {
+            if (
+#if OBOE_USE_RUST_CORE
+                    oboe_rust_aaudio_request_already_satisfied(
+                            getSdkVersion(),
+                            __ANDROID_API_O_MR1__,
+                            static_cast<int32_t>(state),
+                            static_cast<int32_t>(StreamState::Starting),
+                            static_cast<int32_t>(StreamState::Started))
+#else
+                    state == StreamState::Starting || state == StreamState::Started
+#endif
+            ) {
                 // WARNING: On P, AAudio is returning ErrorInvalidState for Output and OK for Input.
                 return Result::OK;
             }
@@ -783,13 +1832,37 @@ Result AudioStreamAAudio::requestStart() {
 }
 
 Result AudioStreamAAudio::requestPause() {
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        std::lock_guard<std::mutex> lock(mLock);
+        return static_cast<Result>(
+                oboe_rust_aaudio_output_request_pause(mRustAAudioOutputStream));
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        std::lock_guard<std::mutex> lock(mLock);
+        return static_cast<Result>(
+                oboe_rust_aaudio_input_request_pause(mRustAAudioInputStream));
+    }
+#endif
+
     std::lock_guard<std::mutex> lock(mLock);
     AAudioStream *stream = mAAudioStream.load();
     if (stream != nullptr) {
         // Avoid state machine errors in O_MR1.
         if (getSdkVersion() <= __ANDROID_API_O_MR1__) {
             StreamState state = static_cast<StreamState>(mLibLoader->stream_getState(stream));
-            if (state == StreamState::Pausing || state == StreamState::Paused) {
+            if (
+#if OBOE_USE_RUST_CORE
+                    oboe_rust_aaudio_request_already_satisfied(
+                            getSdkVersion(),
+                            __ANDROID_API_O_MR1__,
+                            static_cast<int32_t>(state),
+                            static_cast<int32_t>(StreamState::Pausing),
+                            static_cast<int32_t>(StreamState::Paused))
+#else
+                    state == StreamState::Pausing || state == StreamState::Paused
+#endif
+            ) {
                 return Result::OK;
             }
         }
@@ -800,13 +1873,37 @@ Result AudioStreamAAudio::requestPause() {
 }
 
 Result AudioStreamAAudio::requestFlush() {
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        std::lock_guard<std::mutex> lock(mLock);
+        return static_cast<Result>(
+                oboe_rust_aaudio_output_request_flush(mRustAAudioOutputStream));
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        std::lock_guard<std::mutex> lock(mLock);
+        return static_cast<Result>(
+                oboe_rust_aaudio_input_request_flush(mRustAAudioInputStream));
+    }
+#endif
+
     std::lock_guard<std::mutex> lock(mLock);
     AAudioStream *stream = mAAudioStream.load();
     if (stream != nullptr) {
         // Avoid state machine errors in O_MR1.
         if (getSdkVersion() <= __ANDROID_API_O_MR1__) {
             StreamState state = static_cast<StreamState>(mLibLoader->stream_getState(stream));
-            if (state == StreamState::Flushing || state == StreamState::Flushed) {
+            if (
+#if OBOE_USE_RUST_CORE
+                    oboe_rust_aaudio_request_already_satisfied(
+                            getSdkVersion(),
+                            __ANDROID_API_O_MR1__,
+                            static_cast<int32_t>(state),
+                            static_cast<int32_t>(StreamState::Flushing),
+                            static_cast<int32_t>(StreamState::Flushed))
+#else
+                    state == StreamState::Flushing || state == StreamState::Flushed
+#endif
+            ) {
                 return Result::OK;
             }
         }
@@ -817,6 +1914,19 @@ Result AudioStreamAAudio::requestFlush() {
 }
 
 Result AudioStreamAAudio::requestStop() {
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        std::lock_guard<std::mutex> lock(mLock);
+        return static_cast<Result>(
+                oboe_rust_aaudio_output_request_stop(mRustAAudioOutputStream));
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        std::lock_guard<std::mutex> lock(mLock);
+        return static_cast<Result>(
+                oboe_rust_aaudio_input_request_stop(mRustAAudioInputStream));
+    }
+#endif
+
     std::lock_guard<std::mutex> lock(mLock);
     AAudioStream *stream = mAAudioStream.load();
     if (stream != nullptr) {
@@ -828,10 +1938,34 @@ Result AudioStreamAAudio::requestStop() {
 
 // Call under mLock
 Result AudioStreamAAudio::requestStop_l(AAudioStream *stream) {
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        (void) stream;
+        return static_cast<Result>(
+                oboe_rust_aaudio_output_request_stop(mRustAAudioOutputStream));
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        (void) stream;
+        return static_cast<Result>(
+                oboe_rust_aaudio_input_request_stop(mRustAAudioInputStream));
+    }
+#endif
+
     // Avoid state machine errors in O_MR1.
     if (getSdkVersion() <= __ANDROID_API_O_MR1__) {
         StreamState state = static_cast<StreamState>(mLibLoader->stream_getState(stream));
-        if (state == StreamState::Stopping || state == StreamState::Stopped) {
+        if (
+#if OBOE_USE_RUST_CORE
+                oboe_rust_aaudio_request_already_satisfied(
+                        getSdkVersion(),
+                        __ANDROID_API_O_MR1__,
+                        static_cast<int32_t>(state),
+                        static_cast<int32_t>(StreamState::Stopping),
+                        static_cast<int32_t>(StreamState::Stopped))
+#else
+                state == StreamState::Stopping || state == StreamState::Stopped
+#endif
+        ) {
             return Result::OK;
         }
     }
@@ -841,6 +1975,21 @@ Result AudioStreamAAudio::requestStop_l(AAudioStream *stream) {
 ResultWithValue<int32_t>   AudioStreamAAudio::write(const void *buffer,
                                      int32_t numFrames,
                                      int64_t timeoutNanoseconds) {
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        int32_t result = oboe_rust_aaudio_output_write(
+                mRustAAudioOutputStream, buffer, numFrames, timeoutNanoseconds);
+        return ResultWithValue<int32_t>::createBasedOnSign(result);
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        int32_t result = oboe_rust_aaudio_input_write(
+                mRustAAudioInputStream, buffer, numFrames, timeoutNanoseconds);
+        return ResultWithValue<int32_t>::createBasedOnSign(result);
+    }
+#endif
+
     std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
     AAudioStream *stream = mAAudioStream.load();
     if (stream != nullptr) {
@@ -855,6 +2004,21 @@ ResultWithValue<int32_t>   AudioStreamAAudio::write(const void *buffer,
 ResultWithValue<int32_t>   AudioStreamAAudio::read(void *buffer,
                                  int32_t numFrames,
                                  int64_t timeoutNanoseconds) {
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        int32_t result = oboe_rust_aaudio_output_read(
+                mRustAAudioOutputStream, buffer, numFrames, timeoutNanoseconds);
+        return ResultWithValue<int32_t>::createBasedOnSign(result);
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        int32_t result = oboe_rust_aaudio_input_read(
+                mRustAAudioInputStream, buffer, numFrames, timeoutNanoseconds);
+        return ResultWithValue<int32_t>::createBasedOnSign(result);
+    }
+#endif
+
     std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
     AAudioStream *stream = mAAudioStream.load();
     if (stream != nullptr) {
@@ -874,6 +2038,39 @@ ResultWithValue<int32_t>   AudioStreamAAudio::read(void *buffer,
 Result AudioStreamAAudio::waitForStateChange(StreamState currentState,
                                         StreamState *nextState,
                                         int64_t timeoutNanoseconds) {
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        int32_t rustNextState = nextState == nullptr
+                ? static_cast<int32_t>(StreamState::Unknown)
+                : static_cast<int32_t>(*nextState);
+        Result result = static_cast<Result>(
+                oboe_rust_aaudio_output_wait_for_state_change(
+                        mRustAAudioOutputStream,
+                        static_cast<int32_t>(currentState),
+                        nextState == nullptr ? nullptr : &rustNextState,
+                        timeoutNanoseconds));
+        if (nextState != nullptr) {
+            *nextState = static_cast<StreamState>(rustNextState);
+        }
+        return result;
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        int32_t rustNextState = nextState == nullptr
+                ? static_cast<int32_t>(StreamState::Unknown)
+                : static_cast<int32_t>(*nextState);
+        Result result = static_cast<Result>(
+                oboe_rust_aaudio_input_wait_for_state_change(
+                        mRustAAudioInputStream,
+                        static_cast<int32_t>(currentState),
+                        nextState == nullptr ? nullptr : &rustNextState,
+                        timeoutNanoseconds));
+        if (nextState != nullptr) {
+            *nextState = static_cast<StreamState>(rustNextState);
+        }
+        return result;
+    }
+#endif
+
     Result oboeResult = Result::ErrorTimeout;
     int64_t sleepTimeNanos = 20 * kNanosPerMillisecond; // arbitrary
     aaudio_stream_state_t currentAAudioState = static_cast<aaudio_stream_state_t>(currentState);
@@ -906,10 +2103,19 @@ Result AudioStreamAAudio::waitForStateChange(StreamState currentState,
             break;
         }
 #if OBOE_FIX_FORCE_STARTING_TO_STARTED
+#if OBOE_USE_RUST_CORE
+        aaudioNextState = static_cast<aaudio_stream_state_t>(
+                oboe_rust_aaudio_force_starting_to_started(
+                        OboeGlobals::areWorkaroundsEnabled(),
+                        static_cast<int32_t>(aaudioNextState),
+                        static_cast<int32_t>(StreamState::Starting),
+                        static_cast<int32_t>(StreamState::Started)));
+#else
         if (OboeGlobals::areWorkaroundsEnabled()
             && aaudioNextState == static_cast<aaudio_stream_state_t >(StreamState::Starting)) {
             aaudioNextState = static_cast<aaudio_stream_state_t >(StreamState::Started);
         }
+#endif
 #endif // OBOE_FIX_FORCE_STARTING_TO_STARTED
         if (nextState != nullptr) {
             *nextState = static_cast<StreamState>(aaudioNextState);
@@ -946,6 +2152,23 @@ ResultWithValue<int32_t> AudioStreamAAudio::setBufferSizeInFrames(int32_t reques
     // This calls getBufferSize() so avoid recursive lock.
     adjustedFrames = QuirksManager::getInstance().clipBufferSize(*this, adjustedFrames);
 
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        int32_t newBufferSize = oboe_rust_aaudio_output_set_buffer_size(
+                mRustAAudioOutputStream, adjustedFrames);
+        if (newBufferSize > 0) mBufferSizeInFrames = newBufferSize;
+        return ResultWithValue<int32_t>::createBasedOnSign(newBufferSize);
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        int32_t newBufferSize = oboe_rust_aaudio_input_set_buffer_size(
+                mRustAAudioInputStream, adjustedFrames);
+        if (newBufferSize > 0) mBufferSizeInFrames = newBufferSize;
+        return ResultWithValue<int32_t>::createBasedOnSign(newBufferSize);
+    }
+#endif
+
     std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
     AAudioStream *stream = mAAudioStream.load();
     if (stream != nullptr) {
@@ -959,15 +2182,37 @@ ResultWithValue<int32_t> AudioStreamAAudio::setBufferSizeInFrames(int32_t reques
 }
 
 StreamState AudioStreamAAudio::getState() {
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        return static_cast<StreamState>(
+                oboe_rust_aaudio_output_get_state(mRustAAudioOutputStream));
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        return static_cast<StreamState>(
+                oboe_rust_aaudio_input_get_state(mRustAAudioInputStream));
+    }
+#endif
+
     std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
     AAudioStream *stream = mAAudioStream.load();
     if (stream != nullptr) {
         aaudio_stream_state_t aaudioState = mLibLoader->stream_getState(stream);
 #if OBOE_FIX_FORCE_STARTING_TO_STARTED
+#if OBOE_USE_RUST_CORE
+        aaudioState = static_cast<aaudio_stream_state_t>(
+                oboe_rust_aaudio_force_starting_to_started(
+                        OboeGlobals::areWorkaroundsEnabled(),
+                        static_cast<int32_t>(aaudioState),
+                        static_cast<int32_t>(AAUDIO_STREAM_STATE_STARTING),
+                        static_cast<int32_t>(AAUDIO_STREAM_STATE_STARTED)));
+#else
         if (OboeGlobals::areWorkaroundsEnabled()
             && aaudioState == AAUDIO_STREAM_STATE_STARTING) {
             aaudioState = AAUDIO_STREAM_STATE_STARTED;
         }
+#endif
 #endif // OBOE_FIX_FORCE_STARTING_TO_STARTED
         return static_cast<StreamState>(aaudioState);
     } else {
@@ -992,6 +2237,19 @@ std::vector<int32_t> AudioStreamAAudio::getDeviceIds() const {
 }
 
 int32_t AudioStreamAAudio::getBufferSizeInFrames() {
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        mBufferSizeInFrames = oboe_rust_aaudio_output_get_buffer_size(mRustAAudioOutputStream);
+        return mBufferSizeInFrames;
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        mBufferSizeInFrames = oboe_rust_aaudio_input_get_buffer_size(mRustAAudioInputStream);
+        return mBufferSizeInFrames;
+    }
+#endif
+
     std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
     AAudioStream *stream = mAAudioStream.load();
     if (stream != nullptr) {
@@ -1001,6 +2259,19 @@ int32_t AudioStreamAAudio::getBufferSizeInFrames() {
 }
 
 void AudioStreamAAudio::updateFramesRead() {
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        mFramesRead = oboe_rust_aaudio_output_get_frames_read(mRustAAudioOutputStream);
+        return;
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        mFramesRead = oboe_rust_aaudio_input_get_frames_read(mRustAAudioInputStream);
+        return;
+    }
+#endif
+
     std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
     AAudioStream *stream = mAAudioStream.load();
 // Set to 1 for debugging race condition #1180 with mAAudioStream.
@@ -1019,6 +2290,19 @@ void AudioStreamAAudio::updateFramesRead() {
 }
 
 void AudioStreamAAudio::updateFramesWritten() {
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        mFramesWritten = oboe_rust_aaudio_output_get_frames_written(mRustAAudioOutputStream);
+        return;
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        mFramesWritten = oboe_rust_aaudio_input_get_frames_written(mRustAAudioInputStream);
+        return;
+    }
+#endif
+
     std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
     AAudioStream *stream = mAAudioStream.load();
     if (stream != nullptr) {
@@ -1027,6 +2311,19 @@ void AudioStreamAAudio::updateFramesWritten() {
 }
 
 ResultWithValue<int32_t> AudioStreamAAudio::getXRunCount() {
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        int32_t result = oboe_rust_aaudio_output_get_xrun_count(mRustAAudioOutputStream);
+        return ResultWithValue<int32_t>::createBasedOnSign(result);
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        int32_t result = oboe_rust_aaudio_input_get_xrun_count(mRustAAudioInputStream);
+        return ResultWithValue<int32_t>::createBasedOnSign(result);
+    }
+#endif
+
     std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
     AAudioStream *stream = mAAudioStream.load();
     if (stream != nullptr) {
@@ -1042,6 +2339,27 @@ Result AudioStreamAAudio::getTimestamp(clockid_t clockId,
     if (getState() != StreamState::Started) {
         return Result::ErrorInvalidState;
     }
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        return static_cast<Result>(
+                oboe_rust_aaudio_output_get_timestamp(
+                        mRustAAudioOutputStream,
+                        static_cast<int32_t>(clockId),
+                        framePosition,
+                        timeNanoseconds));
+    }
+    if (mRustAAudioInputStream != nullptr) {
+        std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+        return static_cast<Result>(
+                oboe_rust_aaudio_input_get_timestamp(
+                        mRustAAudioInputStream,
+                        static_cast<int32_t>(clockId),
+                        framePosition,
+                        timeNanoseconds));
+    }
+#endif
+
     std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
     AAudioStream *stream = mAAudioStream.load();
     if (stream != nullptr) {
@@ -1072,6 +2390,17 @@ ResultWithValue<double> AudioStreamAAudio::calculateLatencyMillis() {
     int64_t appFrameAppTime =
             duration_cast<nanoseconds>(steady_clock::now().time_since_epoch()).count();
 
+#if OBOE_USE_RUST_CORE
+    double latencyMillis = oboe_rust_aaudio_calculate_latency_millis(
+            isOutput,
+            appFrameIndex,
+            hardwareFrameIndex,
+            appFrameAppTime,
+            hardwareFrameHardwareTime,
+            getSampleRate(),
+            oboe::kNanosPerSecond,
+            kNanosPerMillisecond);
+#else
     // Calculate the number of frames between app and hardware
     int64_t frameIndexDelta = appFrameIndex - hardwareFrameIndex;
 
@@ -1085,6 +2414,7 @@ ResultWithValue<double> AudioStreamAAudio::calculateLatencyMillis() {
                           ? (appFrameHardwareTime - appFrameAppTime) // hardware is later
                           : (appFrameAppTime - appFrameHardwareTime)); // hardware is earlier
     double latencyMillis = latencyNanos / kNanosPerMillisecond;
+#endif
 
     return ResultWithValue<double>(latencyMillis);
 }
@@ -1169,6 +2499,12 @@ Result AudioStreamAAudio::setOffloadDelayPadding(
         return Result::ErrorUnimplemented;
     }
     std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        return static_cast<Result>(oboe_rust_aaudio_output_set_offload_delay_padding(
+                mRustAAudioOutputStream, delayInFrames, paddingInFrames));
+    }
+#endif
     AAudioStream *stream = mAAudioStream.load();
     if (stream == nullptr) {
         return Result::ErrorClosed;
@@ -1182,6 +2518,12 @@ ResultWithValue<int32_t> AudioStreamAAudio::getOffloadDelay() {
         return ResultWithValue<int32_t>(Result::ErrorUnimplemented);
     }
     std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        return ResultWithValue<int32_t>::createBasedOnSign(
+                oboe_rust_aaudio_output_get_offload_delay(mRustAAudioOutputStream));
+    }
+#endif
     AAudioStream *stream = mAAudioStream.load();
     if (stream == nullptr) {
         return Result::ErrorClosed;
@@ -1194,6 +2536,12 @@ ResultWithValue<int32_t> AudioStreamAAudio::getOffloadPadding() {
         return ResultWithValue<int32_t>(Result::ErrorUnimplemented);
     }
     std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        return ResultWithValue<int32_t>::createBasedOnSign(
+                oboe_rust_aaudio_output_get_offload_padding(mRustAAudioOutputStream));
+    }
+#endif
     AAudioStream *stream = mAAudioStream.load();
     if (stream == nullptr) {
         return ResultWithValue<int32_t>(Result::ErrorClosed);
@@ -1207,6 +2555,12 @@ Result AudioStreamAAudio::setOffloadEndOfStream() {
         return Result::ErrorUnimplemented;
     }
     std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        return static_cast<Result>(
+                oboe_rust_aaudio_output_set_offload_end_of_stream(mRustAAudioOutputStream));
+    }
+#endif
     AAudioStream *stream = mAAudioStream.load();
     if (stream == nullptr) {
         return ResultWithValue<int32_t>(Result::ErrorClosed);
@@ -1258,6 +2612,13 @@ ResultWithValue<int64_t> AudioStreamAAudio::flushFromFrame(FlushFromAccuracy acc
         return ResultWithValue<int64_t>(positionInFrames, Result::ErrorUnimplemented);
     }
     std::shared_lock<std::shared_mutex> lock(mAAudioStreamLock);
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        auto result = static_cast<Result>(oboe_rust_aaudio_output_flush_from_frame(
+                mRustAAudioOutputStream, static_cast<int32_t>(accuracy), &positionInFrames));
+        return ResultWithValue<int64_t>(positionInFrames, result);
+    }
+#endif
     AAudioStream *stream = mAAudioStream.load();
     if (stream == nullptr) {
         return ResultWithValue<int64_t>(positionInFrames, Result::ErrorClosed);
@@ -1345,6 +2706,29 @@ Result AudioStreamAAudio::setPlaybackParameters(const PlaybackParameters &parame
         return Result::ErrorUnimplemented;
     }
     std::shared_lock _l(mAAudioStreamLock);
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        OboeRustAAudioPlaybackParameters rustParameters = {
+                static_cast<int32_t>(parameters.fallbackMode),
+                static_cast<int32_t>(parameters.stretchMode),
+                parameters.pitch,
+                parameters.speed,
+        };
+        if (!oboe_rust_aaudio_playback_parameters_valid(
+                rustParameters.fallback_mode,
+                rustParameters.stretch_mode,
+                AAUDIO_FALLBACK_MODE_DEFAULT,
+                AAUDIO_FALLBACK_MODE_MUTE,
+                AAUDIO_FALLBACK_MODE_FAIL,
+                AAUDIO_STRETCH_MODE_DEFAULT,
+                AAUDIO_STRETCH_MODE_VOICE)) {
+            LOGE("%s, invalid parameters, %s", __func__, toString(parameters).c_str());
+            return Result::ErrorIllegalArgument;
+        }
+        return static_cast<Result>(oboe_rust_aaudio_output_set_playback_parameters(
+                mRustAAudioOutputStream, &rustParameters));
+    }
+#endif
     AAudioStream *stream = mAAudioStream.load();
     if (stream == nullptr) {
         LOGE("%s the stream is already closed", __func__);
@@ -1367,6 +2751,34 @@ ResultWithValue<PlaybackParameters> AudioStreamAAudio::getPlaybackParameters() {
         return Result::ErrorUnimplemented;
     }
     std::shared_lock _l(mAAudioStreamLock);
+#if OBOE_USE_RUST_CORE
+    if (mRustAAudioOutputStream != nullptr) {
+        OboeRustAAudioPlaybackParameters rustParameters = {};
+        auto result = static_cast<Result>(oboe_rust_aaudio_output_get_playback_parameters(
+                mRustAAudioOutputStream, &rustParameters));
+        if (result != Result::OK) {
+            return ResultWithValue<PlaybackParameters>(result);
+        }
+        if (!oboe_rust_aaudio_playback_parameters_valid(
+                rustParameters.fallback_mode,
+                rustParameters.stretch_mode,
+                AAUDIO_FALLBACK_MODE_DEFAULT,
+                AAUDIO_FALLBACK_MODE_MUTE,
+                AAUDIO_FALLBACK_MODE_FAIL,
+                AAUDIO_STRETCH_MODE_DEFAULT,
+                AAUDIO_STRETCH_MODE_VOICE)) {
+            LOGE("%s unknown playback parameters %d/%d", __func__,
+                 rustParameters.fallback_mode, rustParameters.stretch_mode);
+            return ResultWithValue<PlaybackParameters>(Result::ErrorIllegalArgument);
+        }
+        PlaybackParameters playbackParameters;
+        playbackParameters.fallbackMode = static_cast<FallbackMode>(rustParameters.fallback_mode);
+        playbackParameters.stretchMode = static_cast<StretchMode>(rustParameters.stretch_mode);
+        playbackParameters.pitch = rustParameters.pitch;
+        playbackParameters.speed = rustParameters.speed;
+        return ResultWithValue<PlaybackParameters>(playbackParameters);
+    }
+#endif
     AAudioStream *stream = mAAudioStream.load();
     if (stream == nullptr) {
         LOGE("%s the stream is already closed", __func__);

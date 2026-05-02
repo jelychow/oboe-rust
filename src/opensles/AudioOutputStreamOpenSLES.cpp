@@ -23,10 +23,23 @@
 #include "AudioStreamOpenSLES.h"
 #include "OpenSLESUtilities.h"
 #include "OutputMixerOpenSLES.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace oboe;
 
 static SLuint32 OpenSLES_convertOutputUsage(Usage oboeUsage) {
+#if OBOE_USE_RUST_CORE
+    return static_cast<SLuint32>(oboe_rust_opensles_convert_output_usage(
+            static_cast<int32_t>(oboeUsage),
+            SL_ANDROID_STREAM_MEDIA,
+            SL_ANDROID_STREAM_VOICE,
+            SL_ANDROID_STREAM_ALARM,
+            SL_ANDROID_STREAM_NOTIFICATION,
+            SL_ANDROID_STREAM_RING,
+            SL_ANDROID_STREAM_SYSTEM));
+#else
     SLuint32 openslStream;
     switch(oboeUsage) {
         case Usage::Media:
@@ -56,6 +69,7 @@ static SLuint32 OpenSLES_convertOutputUsage(Usage oboeUsage) {
             break;
     }
     return openslStream;
+#endif
 }
 
 AudioOutputStreamOpenSLES::AudioOutputStreamOpenSLES(const AudioStreamBuilder &builder)
@@ -75,6 +89,16 @@ constexpr int SL_ANDROID_SPEAKER_7DOT1 = (SL_ANDROID_SPEAKER_5DOT1 | SL_SPEAKER_
         | SL_SPEAKER_SIDE_RIGHT);
 
 SLuint32 AudioOutputStreamOpenSLES::channelCountToChannelMask(int channelCount) const {
+#if OBOE_USE_RUST_CORE
+    return static_cast<SLuint32>(oboe_rust_opensles_output_channel_mask(
+            channelCount,
+            channelCountToChannelMaskDefault(channelCount),
+            SL_SPEAKER_FRONT_CENTER,
+            SL_ANDROID_SPEAKER_STEREO,
+            SL_ANDROID_SPEAKER_QUAD,
+            SL_ANDROID_SPEAKER_5DOT1,
+            SL_ANDROID_SPEAKER_7DOT1));
+#else
     SLuint32 channelMask = 0;
 
     switch (channelCount) {
@@ -103,12 +127,15 @@ SLuint32 AudioOutputStreamOpenSLES::channelCountToChannelMask(int channelCount) 
             break;
     }
     return channelMask;
+#endif
 }
 
 Result AudioOutputStreamOpenSLES::open() {
     logUnsupportedAttributes();
 
+#if !OBOE_USE_RUST_CORE
     SLAndroidConfigurationItf configItf = nullptr;
+#endif
 
 
     if (getSdkVersion() < __ANDROID_API_L__ && mFormat == AudioFormat::Float){
@@ -120,18 +147,31 @@ Result AudioOutputStreamOpenSLES::open() {
     // API 21+: FLOAT
     // API <21: INT16
     if (mFormat == AudioFormat::Unspecified){
+#if OBOE_USE_RUST_CORE
+        mFormat = static_cast<AudioFormat>(oboe_rust_opensles_select_default_format(
+                static_cast<int32_t>(mFormat),
+                getSdkVersion(),
+                __ANDROID_API_L__,
+                static_cast<int32_t>(AudioFormat::I16),
+                static_cast<int32_t>(AudioFormat::Float)));
+#else
         mFormat = (getSdkVersion() < __ANDROID_API_L__) ?
                   AudioFormat::I16 : AudioFormat::Float;
+#endif
     }
 
     Result oboeResult = AudioStreamOpenSLES::open();
     if (Result::OK != oboeResult)  return oboeResult;
 
+#if OBOE_USE_RUST_CORE
+    SLresult result = SL_RESULT_SUCCESS;
+#else
     SLresult result = OutputMixerOpenSL::getInstance().open();
     if (SL_RESULT_SUCCESS != result) {
         AudioStreamOpenSLES::close();
         return Result::ErrorInternal;
     }
+#endif
 
     SLuint32 bitsPerSample = static_cast<SLuint32>(getBytesPerSample() * kBitsPerByte);
 
@@ -168,6 +208,35 @@ Result AudioOutputStreamOpenSLES::open() {
         audioSrc.pFormat = &format_pcm_ex;
     }
 
+#if OBOE_USE_RUST_CORE
+    {
+        OboeRustOpenSLESPlatform platform = makeRustOpenSLESPlatform();
+        OboeRustOpenSLESOutputSettings settings{};
+        settings.common = makeRustOpenSLESCommonSettings();
+        settings.audio_source = &audioSrc;
+        settings.opensl_stream_type = static_cast<int32_t>(
+                OpenSLES_convertOutputUsage(getUsage()));
+        OboeRustOpenSLESOutputProperties properties{};
+        mRustOutputBackend = oboe_rust_opensles_output_open(&platform, &settings, &properties);
+        result = static_cast<SLresult>(properties.result);
+        if (mRustOutputBackend == nullptr || result != SL_RESULT_SUCCESS) {
+            LOGE("oboe_rust_opensles_output_open() result:%s", getSLErrStr(result));
+            AudioStreamBuffered::close();
+            setState(StreamState::Closed);
+            return Result::ErrorInternal;
+        }
+        mPlayInterface = reinterpret_cast<SLPlayItf>(properties.raw_play);
+        mSimpleBufferQueueInterface =
+                reinterpret_cast<SLAndroidSimpleBufferQueueItf>(properties.raw_queue);
+        mPerformanceMode = static_cast<PerformanceMode>(properties.resolved_performance_mode);
+        result = finishCommonOpen(nullptr);
+        if (SL_RESULT_SUCCESS != result) {
+            goto error;
+        }
+        setState(StreamState::Open);
+        return Result::OK;
+    }
+#else
     result = OutputMixerOpenSL::getInstance().createAudioPlayer(&mObjectInterface,
                                                                           &audioSrc);
     if (SL_RESULT_SUCCESS != result) {
@@ -219,6 +288,7 @@ Result AudioOutputStreamOpenSLES::open() {
 
     setState(StreamState::Open);
     return Result::OK;
+#endif
 
 error:
     close();  // Clean up various OpenSL objects and prevent resource leaks.
@@ -251,6 +321,19 @@ Result AudioOutputStreamOpenSLES::close() {
 Result AudioOutputStreamOpenSLES::setPlayState_l(SLuint32 newState) {
     LOGD("AudioOutputStreamOpenSLES::%s(%d) called", __func__, newState);
     Result result = Result::OK;
+
+#if OBOE_USE_RUST_CORE
+    if (mRustOutputBackend != nullptr) {
+        SLresult slResult = static_cast<SLresult>(oboe_rust_opensles_output_set_play_state(
+                mRustOutputBackend, static_cast<int32_t>(newState)));
+        if (SL_RESULT_SUCCESS != slResult) {
+            LOGW("AudioOutputStreamOpenSLES(): %s() returned %s", __func__,
+                 getSLErrStr(slResult));
+            result = Result::ErrorInternal;
+        }
+        return result;
+    }
+#endif
 
     if (mPlayInterface == nullptr){
         LOGE("AudioOutputStreamOpenSLES::%s() mPlayInterface is null", __func__);
@@ -368,6 +451,17 @@ Result AudioOutputStreamOpenSLES::requestFlush_l() {
     if (mPlayInterface == nullptr || mSimpleBufferQueueInterface == nullptr) {
         result = Result::ErrorInvalidState;
     } else {
+#if OBOE_USE_RUST_CORE
+        if (mRustOutputBackend != nullptr) {
+            SLresult slResult = static_cast<SLresult>(
+                    oboe_rust_opensles_output_clear_queue(mRustOutputBackend));
+            if (slResult != SL_RESULT_SUCCESS) {
+                LOGW("Failed to clear buffer queue. OpenSLES error: %s", getSLErrStr(slResult));
+                result = Result::ErrorInternal;
+            }
+            return result;
+        }
+#endif
         SLresult slResult = (*mSimpleBufferQueueInterface)->Clear(mSimpleBufferQueueInterface);
         if (slResult != SL_RESULT_SUCCESS){
             LOGW("Failed to clear buffer queue. OpenSLES error: %s", getSLErrStr(slResult));
@@ -420,7 +514,13 @@ Result AudioOutputStreamOpenSLES::requestStop_l() {
 }
 
 void AudioOutputStreamOpenSLES::setFramesRead(int64_t framesRead) {
-    int64_t millisWritten = framesRead * kMillisPerSecond / getSampleRate();
+    int64_t millisWritten =
+#if OBOE_USE_RUST_CORE
+            oboe_rust_opensles_output_position_millis(
+                    framesRead, getSampleRate(), kMillisPerSecond);
+#else
+            framesRead * kMillisPerSecond / getSampleRate();
+#endif
     mPositionMillis.set(millisWritten);
 }
 
@@ -437,6 +537,22 @@ Result AudioOutputStreamOpenSLES::updateServiceFrameCounter() {
     // Avoid deadlock if another thread is trying to stop or close this stream
     // and this is being called from a callback.
     if (mLock.try_lock()) {
+
+#if OBOE_USE_RUST_CORE
+        if (mRustOutputBackend != nullptr) {
+            int32_t msec = 0;
+            SLresult slResult = static_cast<SLresult>(
+                    oboe_rust_opensles_output_get_position_millis(mRustOutputBackend, &msec));
+            if (SL_RESULT_SUCCESS != slResult) {
+                LOGW("%s(): GetPosition() returned %s", __func__, getSLErrStr(slResult));
+                result = Result::ErrorInternal;
+            } else {
+                mPositionMillis.update32(static_cast<SLmillisecond>(msec));
+            }
+            mLock.unlock();
+            return result;
+        }
+#endif
 
         if (mPlayInterface == nullptr) {
             mLock.unlock();

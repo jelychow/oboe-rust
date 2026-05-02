@@ -24,6 +24,10 @@
 #include "opensles/AudioStreamBuffered.h"
 #include "opensles/EngineOpenSLES.h"
 
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
+
 namespace oboe {
 
 constexpr int kBitsPerByte = 8;
@@ -106,6 +110,11 @@ protected:
     PerformanceMode convertPerformanceMode(SLuint32 openslMode) const;
     SLuint32 convertPerformanceMode(PerformanceMode oboeMode) const;
 
+#if OBOE_USE_RUST_CORE
+    OboeRustOpenSLESPlatform makeRustOpenSLESPlatform();
+    OboeRustOpenSLESCommonSettings makeRustOpenSLESCommonSettings();
+#endif
+
     void logUnsupportedAttributes();
 
     /**
@@ -125,6 +134,11 @@ protected:
 
     int32_t                       mBytesPerCallback = oboe::kUnspecified;
     MonotonicCounter              mPositionMillis; // for tracking OpenSL ES service position
+
+#if OBOE_USE_RUST_CORE
+    OboeRustOpenSLESOutputBackend *mRustOutputBackend = nullptr;
+    OboeRustOpenSLESInputBackend  *mRustInputBackend = nullptr;
+#endif
 
 private:
 

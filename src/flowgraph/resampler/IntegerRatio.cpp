@@ -15,17 +15,25 @@
  */
 
 #include "IntegerRatio.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace RESAMPLER_OUTER_NAMESPACE::resampler;
 
 // Enough primes to cover the common sample rates.
+#if !OBOE_USE_RUST_CORE
 static const int kPrimes[] = {
         2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41,
         43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
         101, 103, 107, 109, 113, 127, 131, 137, 139, 149,
         151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199};
+#endif
 
 void IntegerRatio::reduce() {
+#if OBOE_USE_RUST_CORE
+    oboe_rust_integer_ratio_reduce(&mNumerator, &mDenominator);
+#else
     for (int prime : kPrimes) {
         if (mNumerator < prime || mDenominator < prime) {
             break;
@@ -47,4 +55,5 @@ void IntegerRatio::reduce() {
         }
 
     }
+#endif
 }

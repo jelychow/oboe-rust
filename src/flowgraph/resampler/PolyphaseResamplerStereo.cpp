@@ -16,6 +16,9 @@
 
 #include <cassert>
 #include "PolyphaseResamplerStereo.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace RESAMPLER_OUTER_NAMESPACE::resampler;
 
@@ -27,6 +30,9 @@ PolyphaseResamplerStereo::PolyphaseResamplerStereo(const MultiChannelResampler::
 }
 
 void PolyphaseResamplerStereo::writeFrame(const float *frame) {
+#if OBOE_USE_RUST_CORE
+    oboe_rust_resampler_write_frame(mX.data(), frame, getNumTaps(), STEREO, &mCursor);
+#else
     // Move cursor before write so that cursor points to last written frame in read.
     if (--mCursor < 0) {
         mCursor = getNumTaps() - 1;
@@ -41,9 +47,16 @@ void PolyphaseResamplerStereo::writeFrame(const float *frame) {
     dest[1] = right;
     dest[offset] = left;
     dest[1 + offset] = right;
+#endif
 }
 
 void PolyphaseResamplerStereo::readFrame(float *frame) {
+#if OBOE_USE_RUST_CORE
+    const float *coefficients = &mCoefficients[mCoefficientCursor];
+    oboe_rust_polyphase_resampler_read_frame(mX.data(), coefficients, frame,
+                                             mNumTaps, STEREO, mCursor);
+    mCoefficientCursor = (mCoefficientCursor + mNumTaps) % mCoefficients.size();
+#else
     // Clear accumulators.
     float left = 0.0;
     float right = 0.0;
@@ -76,4 +89,5 @@ void PolyphaseResamplerStereo::readFrame(float *frame) {
     // Copy accumulators to output.
     frame[0] = left;
     frame[1] = right;
+#endif
 }

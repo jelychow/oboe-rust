@@ -19,6 +19,9 @@
 #include <math.h>
 
 #include "SincResamplerStereo.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace RESAMPLER_OUTER_NAMESPACE::resampler;
 
@@ -30,6 +33,9 @@ SincResamplerStereo::SincResamplerStereo(const MultiChannelResampler::Builder &b
 }
 
 void SincResamplerStereo::writeFrame(const float *frame) {
+#if OBOE_USE_RUST_CORE
+    oboe_rust_resampler_write_frame(mX.data(), frame, getNumTaps(), STEREO, &mCursor);
+#else
     // Move cursor before write so that cursor points to last written frame in read.
     if (--mCursor < 0) {
         mCursor = getNumTaps() - 1;
@@ -44,10 +50,24 @@ void SincResamplerStereo::writeFrame(const float *frame) {
     dest[1] = right;
     dest[offset] = left;
     dest[1 + offset] = right;
+#endif
 }
 
 // Multiply input times windowed sinc function.
 void SincResamplerStereo::readFrame(float *frame) {
+#if OBOE_USE_RUST_CORE
+    double tablePhase = getIntegerPhase() * mPhaseScaler;
+    int index1 = static_cast<int>(floor(tablePhase));
+    float *coefficients1 = &mCoefficients[static_cast<size_t>(index1)
+            * static_cast<size_t>(getNumTaps())];
+    int index2 = (index1 + 1);
+    float *coefficients2 = &mCoefficients[static_cast<size_t>(index2)
+            * static_cast<size_t>(getNumTaps())];
+    float *xFrame = &mX[static_cast<size_t>(mCursor) * static_cast<size_t>(getChannelCount())];
+    float fraction = tablePhase - index1;
+    oboe_rust_sinc_resampler_read_frame(xFrame, coefficients1, coefficients2,
+                                         frame, mNumTaps, getChannelCount(), fraction);
+#else
     // Clear accumulator for mixing.
     std::fill(mSingleFrame.begin(), mSingleFrame.end(), 0.0);
     std::fill(mSingleFrame2.begin(), mSingleFrame2.end(), 0.0);
@@ -78,4 +98,5 @@ void SincResamplerStereo::readFrame(float *frame) {
         float high = mSingleFrame2[channel];
         frame[channel] = low + (fraction * (high - low));
     }
+#endif
 }

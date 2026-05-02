@@ -20,12 +20,19 @@
 
 #include "FlowGraphNode.h"
 #include "SinkI24.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 #if FLOWGRAPH_ANDROID_INTERNAL
 #include <audio_utils/primitives.h>
 #endif
 
 using namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph;
+
+#if OBOE_USE_RUST_CORE
+constexpr int kBytesPerI24Packed = 3;
+#endif
 
 SinkI24::SinkI24(int32_t channelCount)
         : FlowGraphSink(channelCount) {}
@@ -43,7 +50,10 @@ int32_t SinkI24::read(void *data, int32_t numFrames) {
         }
         const float *floatData = input.getBuffer();
         int32_t numSamples = framesRead * channelCount;
-#if FLOWGRAPH_ANDROID_INTERNAL
+#if OBOE_USE_RUST_CORE
+        oboe_rust_sink_float_to_i24(floatData, byteData, numSamples);
+        byteData += numSamples * kBytesPerI24Packed;
+#elif FLOWGRAPH_ANDROID_INTERNAL
         memcpy_to_p24_from_float(byteData, floatData, numSamples);
         static const int kBytesPerI24Packed = 3;
         byteData += numSamples * kBytesPerI24Packed;

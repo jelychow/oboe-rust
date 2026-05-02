@@ -28,6 +28,11 @@
 #include "oboe/Definitions.h"
 #include "AAudioLoader.h"
 
+#if OBOE_USE_RUST_CORE
+struct OboeRustAAudioOutputStream;
+struct OboeRustAAudioInputStream;
+#endif
+
 namespace oboe {
 
 /**
@@ -41,7 +46,7 @@ public:
     AudioStreamAAudio();
     explicit AudioStreamAAudio(const AudioStreamBuilder &builder);
 
-    virtual ~AudioStreamAAudio() = default;
+    ~AudioStreamAAudio() override;
 
     /**
      *
@@ -180,6 +185,17 @@ protected:
     AdpfWrapper          mAdpfWrapper;
 
 private:
+#if OBOE_USE_RUST_CORE
+    Result openRustOutput();
+    Result openRustInput();
+    bool isRustOutputStream() const {
+        return mRustAAudioOutputStream != nullptr;
+    }
+    bool isRustInputStream() const {
+        return mRustAAudioInputStream != nullptr;
+    }
+#endif
+
     // Must call under mLock. And stream must NOT be nullptr.
     Result requestStop_l(AAudioStream *stream);
 
@@ -198,6 +214,10 @@ private:
     // pointer to the underlying 'C' AAudio stream, valid if open, null if closed
     std::atomic<AAudioStream *> mAAudioStream{nullptr};
     std::shared_mutex           mAAudioStreamLock; // to protect mAAudioStream while closing
+#if OBOE_USE_RUST_CORE
+    OboeRustAAudioOutputStream *mRustAAudioOutputStream = nullptr;
+    OboeRustAAudioInputStream *mRustAAudioInputStream = nullptr;
+#endif
 
     static AAudioLoader *mLibLoader;
 

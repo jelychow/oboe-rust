@@ -19,6 +19,9 @@
 #include <math.h>
 #include "IntegerRatio.h"
 #include "PolyphaseResampler.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace RESAMPLER_OUTER_NAMESPACE::resampler;
 
@@ -38,6 +41,12 @@ PolyphaseResampler::PolyphaseResampler(const MultiChannelResampler::Builder &bui
 }
 
 void PolyphaseResampler::readFrame(float *frame) {
+#if OBOE_USE_RUST_CORE
+    float *coefficients = &mCoefficients[mCoefficientCursor];
+    oboe_rust_polyphase_resampler_read_frame(mX.data(), coefficients, frame,
+                                             mNumTaps, getChannelCount(), mCursor);
+    mCoefficientCursor = (mCoefficientCursor + mNumTaps) % mCoefficients.size();
+#else
     // Clear accumulator for mixing.
     std::fill(mSingleFrame.begin(), mSingleFrame.end(), 0.0);
 
@@ -58,4 +67,5 @@ void PolyphaseResampler::readFrame(float *frame) {
     for (int channel = 0; channel < getChannelCount(); channel++) {
         frame[channel] = mSingleFrame[channel];
     }
+#endif
 }

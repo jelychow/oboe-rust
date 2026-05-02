@@ -25,6 +25,9 @@
 
 #include "oboe/Utilities.h"
 #include "OboeDebug.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 namespace oboe {
 
@@ -79,7 +82,13 @@ DataCallbackResult AudioStream::fireDataCallback(void *audioData, int32_t numFra
     }
     // On Oreo, we might get called after returning stop.
     // So block that here.
-    setDataCallbackEnabled(result == DataCallbackResult::Continue);
+    setDataCallbackEnabled(
+#if OBOE_USE_RUST_CORE
+            oboe_rust_data_callback_should_continue(static_cast<int32_t>(result))
+#else
+            result == DataCallbackResult::Continue
+#endif
+    );
 
     endPerformanceHintInCallback(numFrames);
 
@@ -124,19 +133,35 @@ Result AudioStream::waitForStateTransition(StreamState startingState,
     }
 
     StreamState nextState = state;
+#if OBOE_USE_RUST_CORE
+    Result waitResult = Result::OK;
+#endif
     // TODO Should this be a while()?!
     if (state == startingState && state != endingState) {
+#if OBOE_USE_RUST_CORE
+        waitResult = waitForStateChange(state, &nextState, timeoutNanoseconds);
+#else
         Result result = waitForStateChange(state, &nextState, timeoutNanoseconds);
         if (result != Result::OK) {
             return result;
         }
+#endif
     }
 
+#if OBOE_USE_RUST_CORE
+    return static_cast<Result>(oboe_rust_stream_wait_transition_result(
+            static_cast<int32_t>(state),
+            static_cast<int32_t>(startingState),
+            static_cast<int32_t>(endingState),
+            static_cast<int32_t>(waitResult),
+            static_cast<int32_t>(nextState)));
+#else
     if (nextState != endingState) {
         return Result::ErrorInvalidState;
     } else {
         return Result::OK;
     }
+#endif
 }
 
 Result AudioStream::start(int64_t timeoutNanoseconds)
@@ -195,11 +220,21 @@ int64_t AudioStream::getFramesWritten() {
 
 ResultWithValue<int32_t> AudioStream::getAvailableFrames() {
     int64_t readCounter = getFramesRead();
+#if OBOE_USE_RUST_CORE
+    int64_t writeCounter = getFramesWritten();
+    int32_t framesAvailable = 0;
+    const Result result = static_cast<Result>(oboe_rust_stream_available_frames(
+            readCounter, writeCounter, &framesAvailable));
+    return (result == Result::OK)
+            ? ResultWithValue<int32_t>(framesAvailable)
+            : ResultWithValue<int32_t>(result);
+#else
     if (readCounter < 0) return ResultWithValue<int32_t>::createBasedOnSign(readCounter);
     int64_t writeCounter = getFramesWritten();
     if (writeCounter < 0) return ResultWithValue<int32_t>::createBasedOnSign(writeCounter);
     int32_t framesAvailable = writeCounter - readCounter;
     return ResultWithValue<int32_t>(framesAvailable);
+#endif
 }
 
 ResultWithValue<int32_t> AudioStream::waitForAvailableFrames(int32_t numFrames,
@@ -248,9 +283,17 @@ ResultWithValue<FrameTimestamp> AudioStream::getTimestamp(clockid_t clockId) {
 void AudioStream::calculateDefaultDelayBeforeCloseMillis() {
     // Calculate delay time before close based on burst duration.
     // Start with a burst duration then add 1 msec as a safety margin.
+#if OBOE_USE_RUST_CORE
+    mDelayBeforeCloseMillis = oboe_rust_stream_default_delay_before_close_millis(
+            mFramesPerBurst,
+            getSampleRate(),
+            kMinDelayBeforeCloseMillis,
+            kMaxDelayBeforeCloseMillis);
+#else
     mDelayBeforeCloseMillis = std::clamp(1 + (mFramesPerBurst * 1000) / getSampleRate(),
             kMinDelayBeforeCloseMillis,
             kMaxDelayBeforeCloseMillis);
+#endif
     LOGD("calculateDefaultDelayBeforeCloseMillis() default = %d",
          static_cast<int>(mDelayBeforeCloseMillis));
 }

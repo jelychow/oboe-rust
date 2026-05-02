@@ -21,10 +21,23 @@
 #include "AudioInputStreamOpenSLES.h"
 #include "AudioStreamOpenSLES.h"
 #include "OpenSLESUtilities.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace oboe;
 
 static SLuint32 OpenSLES_convertInputPreset(InputPreset oboePreset) {
+#if OBOE_USE_RUST_CORE
+    return static_cast<SLuint32>(oboe_rust_opensles_convert_input_preset(
+            static_cast<int32_t>(oboePreset),
+            SL_ANDROID_RECORDING_PRESET_NONE,
+            SL_ANDROID_RECORDING_PRESET_GENERIC,
+            SL_ANDROID_RECORDING_PRESET_CAMCORDER,
+            SL_ANDROID_RECORDING_PRESET_VOICE_RECOGNITION,
+            SL_ANDROID_RECORDING_PRESET_VOICE_COMMUNICATION,
+            SL_ANDROID_RECORDING_PRESET_UNPROCESSED));
+#else
     SLuint32 openslPreset = SL_ANDROID_RECORDING_PRESET_NONE;
     switch(oboePreset) {
         case InputPreset::Generic:
@@ -47,6 +60,7 @@ static SLuint32 OpenSLES_convertInputPreset(InputPreset oboePreset) {
             break;
     }
     return openslPreset;
+#endif
 }
 
 AudioInputStreamOpenSLES::AudioInputStreamOpenSLES(const AudioStreamBuilder &builder)
@@ -58,6 +72,14 @@ AudioInputStreamOpenSLES::~AudioInputStreamOpenSLES() {
 
 // Calculate masks specific to INPUT streams.
 SLuint32 AudioInputStreamOpenSLES::channelCountToChannelMask(int channelCount) const {
+#if OBOE_USE_RUST_CORE
+    return static_cast<SLuint32>(oboe_rust_opensles_input_channel_mask(
+            channelCount,
+            channelCountToChannelMaskDefault(channelCount),
+            SL_SPEAKER_FRONT_CENTER,
+            SL_SPEAKER_FRONT_LEFT,
+            SL_SPEAKER_FRONT_RIGHT));
+#else
     // Derived from internal sles_channel_in_mask_from_count(chanCount);
     // in "frameworks/wilhelm/src/android/channels.cpp".
     // Yes, it seems strange to use SPEAKER constants to describe inputs.
@@ -70,12 +92,15 @@ SLuint32 AudioInputStreamOpenSLES::channelCountToChannelMask(int channelCount) c
         default:
             return channelCountToChannelMaskDefault(channelCount);
     }
+#endif
 }
 
 Result AudioInputStreamOpenSLES::open() {
     logUnsupportedAttributes();
 
+#if !OBOE_USE_RUST_CORE
     SLAndroidConfigurationItf configItf = nullptr;
+#endif
 
     if (getSdkVersion() < __ANDROID_API_M__ && mFormat == AudioFormat::Float){
         // TODO: Allow floating point format on API <23 using float->int16 converter
@@ -86,8 +111,17 @@ Result AudioInputStreamOpenSLES::open() {
     // API 23+: FLOAT
     // API <23: INT16
     if (mFormat == AudioFormat::Unspecified){
+#if OBOE_USE_RUST_CORE
+        mFormat = static_cast<AudioFormat>(oboe_rust_opensles_select_default_format(
+                static_cast<int32_t>(mFormat),
+                getSdkVersion(),
+                __ANDROID_API_M__,
+                static_cast<int32_t>(AudioFormat::I16),
+                static_cast<int32_t>(AudioFormat::Float)));
+#else
         mFormat = (getSdkVersion() < __ANDROID_API_M__) ?
                   AudioFormat::I16 : AudioFormat::Float;
+#endif
     }
 
     Result oboeResult = AudioStreamOpenSLES::open();
@@ -129,13 +163,56 @@ Result AudioInputStreamOpenSLES::open() {
         audioSink.pFormat = &format_pcm_ex;
     }
 
-
     // configure audio source
     SLDataLocator_IODevice loc_dev = {SL_DATALOCATOR_IODEVICE,
                                       SL_IODEVICE_AUDIOINPUT,
                                       SL_DEFAULTDEVICEID_AUDIOINPUT,
                                       NULL};
     SLDataSource audioSrc = {&loc_dev, NULL};
+
+#if OBOE_USE_RUST_CORE
+    if (getInputPreset() == InputPreset::VoicePerformance) {
+        LOGD("OpenSL ES does not support InputPreset::VoicePerformance. Use VoiceRecognition.");
+        mInputPreset = static_cast<InputPreset>(
+                oboe_rust_opensles_normalize_input_preset(
+                        static_cast<int32_t>(mInputPreset),
+                        static_cast<int32_t>(InputPreset::VoicePerformance),
+                        static_cast<int32_t>(InputPreset::VoiceRecognition)));
+    }
+
+    OboeRustOpenSLESPlatform platform = makeRustOpenSLESPlatform();
+    OboeRustOpenSLESInputSettings settings{};
+    settings.common = makeRustOpenSLESCommonSettings();
+    settings.audio_source = &audioSrc;
+    settings.audio_sink = &audioSink;
+    settings.opensl_recording_preset = static_cast<int32_t>(
+            OpenSLES_convertInputPreset(getInputPreset()));
+    settings.opensl_recording_preset_voice_recognition =
+            SL_ANDROID_RECORDING_PRESET_VOICE_RECOGNITION;
+    settings.oboe_input_preset = static_cast<int32_t>(getInputPreset());
+    settings.oboe_input_preset_voice_recognition =
+            static_cast<int32_t>(InputPreset::VoiceRecognition);
+    OboeRustOpenSLESInputProperties properties{};
+    mRustInputBackend = oboe_rust_opensles_input_open(&platform, &settings, &properties);
+    SLresult result = static_cast<SLresult>(properties.result);
+    if (mRustInputBackend == nullptr || result != SL_RESULT_SUCCESS) {
+        LOGE("oboe_rust_opensles_input_open() result:%s", getSLErrStr(result));
+        AudioStreamBuffered::close();
+        setState(StreamState::Closed);
+        return Result::ErrorInternal;
+    }
+    mRecordInterface = reinterpret_cast<SLRecordItf>(properties.raw_record);
+    mSimpleBufferQueueInterface =
+            reinterpret_cast<SLAndroidSimpleBufferQueueItf>(properties.raw_queue);
+    mPerformanceMode = static_cast<PerformanceMode>(properties.resolved_performance_mode);
+    mInputPreset = static_cast<InputPreset>(properties.resolved_input_preset);
+    result = finishCommonOpen(nullptr);
+    if (SL_RESULT_SUCCESS != result) {
+        goto error;
+    }
+    setState(StreamState::Open);
+    return Result::OK;
+#else
 
     SLresult result = EngineOpenSLES::getInstance().createAudioRecorder(&mObjectInterface,
                                                                         &audioSrc,
@@ -202,6 +279,7 @@ Result AudioInputStreamOpenSLES::open() {
 
     setState(StreamState::Open);
     return Result::OK;
+#endif
 
 error:
     close(); // Clean up various OpenSL objects and prevent resource leaks.
@@ -229,6 +307,19 @@ Result AudioInputStreamOpenSLES::close() {
 Result AudioInputStreamOpenSLES::setRecordState_l(SLuint32 newState) {
     LOGD("AudioInputStreamOpenSLES::%s(%u)", __func__, newState);
     Result result = Result::OK;
+
+#if OBOE_USE_RUST_CORE
+    if (mRustInputBackend != nullptr) {
+        SLresult slResult = static_cast<SLresult>(oboe_rust_opensles_input_set_record_state(
+                mRustInputBackend, static_cast<int32_t>(newState)));
+        if (SL_RESULT_SUCCESS != slResult) {
+            LOGE("AudioInputStreamOpenSLES::%s(%u) returned error %s",
+                    __func__, newState, getSLErrStr(slResult));
+            result = Result::ErrorInternal;
+        }
+        return result;
+    }
+#endif
 
     if (mRecordInterface == nullptr) {
         LOGW("AudioInputStreamOpenSLES::%s() mRecordInterface is null", __func__);
@@ -339,6 +430,22 @@ Result AudioInputStreamOpenSLES::updateServiceFrameCounter() {
     // Avoid deadlock if another thread is trying to stop or close this stream
     // and this is being called from a callback.
     if (mLock.try_lock()) {
+
+#if OBOE_USE_RUST_CORE
+        if (mRustInputBackend != nullptr) {
+            int32_t msec = 0;
+            SLresult slResult = static_cast<SLresult>(
+                    oboe_rust_opensles_input_get_position_millis(mRustInputBackend, &msec));
+            if (SL_RESULT_SUCCESS != slResult) {
+                LOGW("%s(): GetPosition() returned %s", __func__, getSLErrStr(slResult));
+                result = Result::ErrorInternal;
+            } else {
+                mPositionMillis.update32(static_cast<SLmillisecond>(msec));
+            }
+            mLock.unlock();
+            return result;
+        }
+#endif
 
         if (mRecordInterface == nullptr) {
             mLock.unlock();

@@ -18,6 +18,9 @@
 #include <unistd.h>
 #include "FlowGraphNode.h"
 #include "SinkFloat.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph;
 
@@ -38,7 +41,11 @@ int32_t SinkFloat::read(void *data, int32_t numFrames) {
         }
         const float *signal = input.getBuffer();
         int32_t numSamples = framesPulled * channelCount;
+#if OBOE_USE_RUST_CORE
+        oboe_rust_copy_float_buffer(signal, floatData, numSamples);
+#else
         memcpy(floatData, signal, numSamples * sizeof(float));
+#endif
         floatData += numSamples;
         framesLeft -= framesPulled;
     }

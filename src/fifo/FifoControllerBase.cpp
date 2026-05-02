@@ -19,6 +19,9 @@
 #include <stdint.h>
 
 #include "oboe/FifoControllerBase.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 namespace oboe {
 
@@ -30,6 +33,10 @@ FifoControllerBase::FifoControllerBase(uint32_t capacityInFrames)
 }
 
 uint32_t FifoControllerBase::getFullFramesAvailable() const {
+#if OBOE_USE_RUST_CORE
+    return oboe_rust_fifo_full_frames_available(
+            mTotalFrames, getReadCounter(), getWriteCounter());
+#else
     uint64_t writeCounter =  getWriteCounter();
     uint64_t readCounter = getReadCounter();
     if (readCounter > writeCounter) {
@@ -41,11 +48,16 @@ uint32_t FifoControllerBase::getFullFramesAvailable() const {
     }
     // delta is now guaranteed to fit within the range of a uint32_t
     return static_cast<uint32_t>(delta);
+#endif
 }
 
 uint32_t FifoControllerBase::getReadIndex() const {
+#if OBOE_USE_RUST_CORE
+    return oboe_rust_fifo_read_index(mTotalFrames, getReadCounter());
+#else
     // % works with non-power of two sizes
     return static_cast<uint32_t>(getReadCounter() % mTotalFrames);
+#endif
 }
 
 void FifoControllerBase::advanceReadIndex(uint32_t numFrames) {
@@ -53,12 +65,21 @@ void FifoControllerBase::advanceReadIndex(uint32_t numFrames) {
 }
 
 uint32_t FifoControllerBase::getEmptyFramesAvailable() const {
+#if OBOE_USE_RUST_CORE
+    return oboe_rust_fifo_empty_frames_available(
+            mTotalFrames, getReadCounter(), getWriteCounter());
+#else
     return static_cast<uint32_t>(mTotalFrames - getFullFramesAvailable());
+#endif
 }
 
 uint32_t FifoControllerBase::getWriteIndex() const {
+#if OBOE_USE_RUST_CORE
+    return oboe_rust_fifo_write_index(mTotalFrames, getWriteCounter());
+#else
     // % works with non-power of two sizes
     return static_cast<uint32_t>(getWriteCounter() % mTotalFrames);
+#endif
 }
 
 void FifoControllerBase::advanceWriteIndex(uint32_t numFrames) {

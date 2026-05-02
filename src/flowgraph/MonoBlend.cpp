@@ -17,6 +17,9 @@
 #include <unistd.h>
 
 #include "MonoBlend.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph;
 
@@ -31,6 +34,9 @@ int32_t MonoBlend::onProcess(int32_t numFrames) {
     const float *inputBuffer = input.getBuffer();
     float *outputBuffer = output.getBuffer();
 
+#if OBOE_USE_RUST_CORE
+    oboe_rust_mono_blend(inputBuffer, outputBuffer, numFrames, channelCount, mInvChannelCount);
+#else
     for (size_t i = 0; i < numFrames; ++i) {
         float accum = 0;
         for (size_t j = 0; j < channelCount; ++j) {
@@ -41,6 +47,7 @@ int32_t MonoBlend::onProcess(int32_t numFrames) {
             *outputBuffer++ = accum;
         }
     }
+#endif
 
     return numFrames;
 }

@@ -17,6 +17,9 @@
 #include <unistd.h>
 
 #include "ManyToMultiConverter.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph;
 
@@ -33,14 +36,18 @@ int32_t ManyToMultiConverter::onProcess(int32_t numFrames) {
 
     for (int ch = 0; ch < channelCount; ch++) {
         const float *inputBuffer = inputs[ch]->getBuffer();
-        float *outputBuffer = output.getBuffer() + ch;
 
+#if OBOE_USE_RUST_CORE
+        oboe_rust_many_to_multi_channel(inputBuffer, output.getBuffer(), numFrames, channelCount, ch);
+#else
+        float *outputBuffer = output.getBuffer() + ch;
         for (int i = 0; i < numFrames; i++) {
             // read one, write into the proper interleaved output channel
             float sample = *inputBuffer++;
             *outputBuffer = sample;
             outputBuffer += channelCount; // advance to next multichannel frame
         }
+#endif
     }
     return numFrames;
 }

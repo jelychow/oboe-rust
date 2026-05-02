@@ -27,12 +27,20 @@
 #include <oboe/AudioStream.h>
 #include "oboe/Definitions.h"
 #include "oboe/Utilities.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 namespace oboe {
 
+#if !OBOE_USE_RUST_CORE
 constexpr float kScaleI16ToFloat = (1.0f / 32768.0f);
+#endif
 
 void convertFloatToPcm16(const float *source, int16_t *destination, int32_t numSamples) {
+#if OBOE_USE_RUST_CORE
+    oboe_rust_convert_float_to_pcm16(source, destination, numSamples);
+#else
     for (int i = 0; i < numSamples; i++) {
         float fval = source[i];
         fval += 1.0; // to avoid discontinuity at 0.0 caused by truncation
@@ -44,15 +52,23 @@ void convertFloatToPcm16(const float *source, int16_t *destination, int32_t numS
         sample -= 32768; // center at zero
         destination[i] = static_cast<int16_t>(sample);
     }
+#endif
 }
 
 void convertPcm16ToFloat(const int16_t *source, float *destination, int32_t numSamples) {
+#if OBOE_USE_RUST_CORE
+    oboe_rust_convert_pcm16_to_float(source, destination, numSamples);
+#else
     for (int i = 0; i < numSamples; i++) {
         destination[i] = source[i] * kScaleI16ToFloat;
     }
+#endif
 }
 
 int32_t convertFormatToSizeInBytes(AudioFormat format) {
+#if OBOE_USE_RUST_CORE
+    return oboe_rust_convert_format_to_size_in_bytes(static_cast<int32_t>(format));
+#else
     int32_t size = 0;
     switch (format) {
         case AudioFormat::I16:
@@ -85,6 +101,7 @@ int32_t convertFormatToSizeInBytes(AudioFormat format) {
             break;
     }
     return size;
+#endif
 }
 
 template<>

@@ -18,6 +18,9 @@
 #include <unistd.h>
 #include "FlowGraphNode.h"
 #include "RampLinear.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph;
 
@@ -56,6 +59,10 @@ int32_t RampLinear::onProcess(int32_t numFrames) {
         mScaler = (mLevelTo - mLevelFrom) / mLengthInFrames; // for interpolation
     }
 
+#if OBOE_USE_RUST_CORE
+    oboe_rust_ramp_linear(inputBuffer, outputBuffer, numFrames, channelCount,
+                          mLevelTo, &mRemaining, mScaler);
+#else
     int32_t framesLeft = numFrames;
 
     if (mRemaining > 0) { // Ramping? This doesn't happen very often.
@@ -76,6 +83,7 @@ int32_t RampLinear::onProcess(int32_t numFrames) {
     for (int i = 0; i < samplesLeft; i++) {
         *outputBuffer++ = *inputBuffer++ * mLevelTo;
     }
+#endif
 
     return numFrames;
 }

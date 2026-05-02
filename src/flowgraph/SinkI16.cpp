@@ -18,6 +18,9 @@
 #include <unistd.h>
 
 #include "SinkI16.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 #if FLOWGRAPH_ANDROID_INTERNAL
 #include <audio_utils/primitives.h>
@@ -41,7 +44,10 @@ int32_t SinkI16::read(void *data, int32_t numFrames) {
         }
         const float *signal = input.getBuffer();
         int32_t numSamples = framesRead * channelCount;
-#if FLOWGRAPH_ANDROID_INTERNAL
+#if OBOE_USE_RUST_CORE
+        oboe_rust_sink_float_to_i16(signal, shortData, numSamples);
+        shortData += numSamples;
+#elif FLOWGRAPH_ANDROID_INTERNAL
         memcpy_to_i16_from_float(shortData, signal, numSamples);
         shortData += numSamples;
         signal += numSamples;

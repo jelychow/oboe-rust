@@ -27,6 +27,9 @@
 #include "common/OboeDebug.h"
 #include "oboe/Oboe.h"
 #include "AAudioLoader.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 namespace oboe {
 
@@ -113,8 +116,12 @@ private: // Because it is a singleton. Call getInstance() instead.
 
 public:
     static bool isPolicyEnabled(int32_t policy) {
+#if OBOE_USE_RUST_CORE
+        return oboe_rust_mmap_policy_enabled(policy);
+#else
         const MMapPolicy mmapPolicy = static_cast<MMapPolicy>(policy);
         return (mmapPolicy == MMapPolicy::Auto || mmapPolicy == MMapPolicy::Always);
+#endif
     }
 
     static AAudioExtensions &getInstance() {
@@ -162,14 +169,23 @@ public:
         // Use it when it is available.
         if (mLibLoader != nullptr && mLibLoader->aaudio_getMMapPolicy != nullptr) {
             MMapPolicy policy = static_cast<MMapPolicy>(mLibLoader->aaudio_getMMapPolicy());
+#if OBOE_USE_RUST_CORE
+            return oboe_rust_mmap_enabled_from_policy(
+                    static_cast<int32_t>(policy), mMMapSupported);
+#else
             return policy == MMapPolicy::Unspecified
                     ? mMMapSupported : isPolicyEnabled(static_cast<int32_t>(policy));
+#endif
         }
         // When there is no public API, fallback to loading the symbol from hidden API.
         if (loadSymbols()) return false;
         if (mAAudio_getMMapPolicy == nullptr) return false;
         int32_t policy = mAAudio_getMMapPolicy();
+#if OBOE_USE_RUST_CORE
+        return oboe_rust_mmap_enabled_from_policy(policy, mMMapSupported);
+#else
         return (policy == Unspecified) ? mMMapSupported : isPolicyEnabled(policy);
+#endif
     }
 
     bool isMMapSupported() {
@@ -261,37 +277,54 @@ private:
 
         if (mLibLoader == nullptr || mLibLoader->open() != 0) {
             LOGD("%s() could not open " LIB_AAUDIO_NAME, __func__);
-            return AAUDIO_ERROR_UNAVAILABLE;
+            return unavailableResult();
         }
 
         void *libHandle = mLibLoader->getLibHandle();
         if (libHandle == nullptr) {
             LOGE("%s() could not find " LIB_AAUDIO_NAME, __func__);
-            return AAUDIO_ERROR_UNAVAILABLE;
+            return unavailableResult();
         }
 
         mAAudioStream_isMMap = (bool (*)(AAudioStream *stream))
                 dlsym(libHandle, FUNCTION_IS_MMAP);
         if (mAAudioStream_isMMap == nullptr) {
             LOGI("%s() could not find " FUNCTION_IS_MMAP, __func__);
-            return AAUDIO_ERROR_UNAVAILABLE;
+            return unavailableResult();
         }
 
         mAAudio_setMMapPolicy = (int32_t (*)(aaudio_policy_t policy))
                 dlsym(libHandle, FUNCTION_SET_MMAP_POLICY);
         if (mAAudio_setMMapPolicy == nullptr) {
             LOGI("%s() could not find " FUNCTION_SET_MMAP_POLICY, __func__);
-            return AAUDIO_ERROR_UNAVAILABLE;
+            return unavailableResult();
         }
 
         mAAudio_getMMapPolicy = (aaudio_policy_t (*)())
                 dlsym(libHandle, FUNCTION_GET_MMAP_POLICY);
         if (mAAudio_getMMapPolicy == nullptr) {
             LOGI("%s() could not find " FUNCTION_GET_MMAP_POLICY, __func__);
-            return AAUDIO_ERROR_UNAVAILABLE;
+            return unavailableResult();
         }
 
+#if OBOE_USE_RUST_CORE
+        return static_cast<aaudio_result_t>(oboe_rust_mmap_load_symbols_result(
+                mLibLoader != nullptr,
+                libHandle != nullptr,
+                mAAudioStream_isMMap != nullptr,
+                mAAudio_setMMapPolicy != nullptr,
+                mAAudio_getMMapPolicy != nullptr));
+#else
         return 0;
+#endif
+    }
+
+    static aaudio_result_t unavailableResult() {
+#if OBOE_USE_RUST_CORE
+        return static_cast<aaudio_result_t>(oboe_rust_mmap_unavailable_result());
+#else
+        return AAUDIO_ERROR_UNAVAILABLE;
+#endif
     }
 
     bool      mMMapSupported = false;

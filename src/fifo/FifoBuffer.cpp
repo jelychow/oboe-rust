@@ -22,6 +22,9 @@
 #include "fifo/FifoController.h"
 #include "fifo/FifoControllerIndirect.h"
 #include "oboe/FifoBuffer.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 namespace oboe {
 
@@ -70,6 +73,20 @@ int32_t FifoBuffer::read(void *buffer, int32_t numFrames) {
     if (numFrames <= 0) {
         return 0;
     }
+#if OBOE_USE_RUST_CORE
+    int32_t framesRead = oboe_rust_fifo_copy_read(
+            mStorage,
+            mBytesPerFrame,
+            mFifo->getFrameCapacity(),
+            mFifo->getReadCounter(),
+            mFifo->getWriteCounter(),
+            reinterpret_cast<uint8_t *>(buffer),
+            numFrames);
+    if (framesRead > 0) {
+        mFifo->advanceReadIndex(static_cast<uint32_t>(framesRead));
+    }
+    return framesRead;
+#else
     // safe because numFrames is guaranteed positive
     uint32_t framesToRead = static_cast<uint32_t>(numFrames);
     uint32_t framesAvailable = mFifo->getFullFramesAvailable();
@@ -106,12 +123,27 @@ int32_t FifoBuffer::read(void *buffer, int32_t numFrames) {
     mFifo->advanceReadIndex(framesToRead);
 
     return framesToRead;
+#endif
 }
 
 int32_t FifoBuffer::write(const void *buffer, int32_t numFrames) {
     if (numFrames <= 0) {
         return 0;
     }
+#if OBOE_USE_RUST_CORE
+    int32_t framesWritten = oboe_rust_fifo_copy_write(
+            mStorage,
+            mBytesPerFrame,
+            mFifo->getFrameCapacity(),
+            mFifo->getReadCounter(),
+            mFifo->getWriteCounter(),
+            reinterpret_cast<const uint8_t *>(buffer),
+            numFrames);
+    if (framesWritten > 0) {
+        mFifo->advanceWriteIndex(static_cast<uint32_t>(framesWritten));
+    }
+    return framesWritten;
+#else
     // Guaranteed positive.
     uint32_t framesToWrite = static_cast<uint32_t>(numFrames);
     uint32_t framesAvailable = mFifo->getEmptyFramesAvailable();
@@ -149,10 +181,25 @@ int32_t FifoBuffer::write(const void *buffer, int32_t numFrames) {
     mFifo->advanceWriteIndex(framesToWrite);
 
     return framesToWrite;
+#endif
 }
 
 int32_t FifoBuffer::readNow(void *buffer, int32_t numFrames) {
+#if OBOE_USE_RUST_CORE
+    int32_t framesRead = oboe_rust_fifo_copy_read_now(
+            mStorage,
+            mBytesPerFrame,
+            mFifo->getFrameCapacity(),
+            mFifo->getReadCounter(),
+            mFifo->getWriteCounter(),
+            reinterpret_cast<uint8_t *>(buffer),
+            numFrames);
+    if (framesRead > 0) {
+        mFifo->advanceReadIndex(static_cast<uint32_t>(framesRead));
+    }
+#else
     int32_t framesRead = read(buffer, numFrames);
+#endif
     if (framesRead < 0) {
         return framesRead;
     }
@@ -160,12 +207,14 @@ int32_t FifoBuffer::readNow(void *buffer, int32_t numFrames) {
     mFramesReadCount += framesRead;
     mFramesUnderrunCount += framesLeft;
     // Zero out any samples we could not set.
+#if !OBOE_USE_RUST_CORE
     if (framesLeft > 0) {
         uint8_t *destination = reinterpret_cast<uint8_t *>(buffer);
         destination += convertFramesToBytes(framesRead); // point to first byte not set
         int32_t bytesToZero = convertFramesToBytes(framesLeft);
         memset(destination, 0, static_cast<size_t>(bytesToZero));
     }
+#endif
 
     return framesRead;
 }

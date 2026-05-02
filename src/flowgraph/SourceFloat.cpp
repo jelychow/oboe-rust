@@ -18,6 +18,9 @@
 #include <unistd.h>
 #include "FlowGraphNode.h"
 #include "SourceFloat.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph;
 
@@ -35,7 +38,11 @@ int32_t SourceFloat::onProcess(int32_t numFrames) {
 
     const float *floatBase = (float *) mData;
     const float *floatData = &floatBase[mFrameIndex * channelCount];
+#if OBOE_USE_RUST_CORE
+    oboe_rust_copy_float_buffer(floatData, outputBuffer, numSamples);
+#else
     memcpy(outputBuffer, floatData, numSamples * sizeof(float));
+#endif
     mFrameIndex += framesToProcess;
     return framesToProcess;
 }

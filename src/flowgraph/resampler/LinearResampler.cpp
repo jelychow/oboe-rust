@@ -15,6 +15,9 @@
  */
 
 #include "LinearResampler.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace RESAMPLER_OUTER_NAMESPACE::resampler;
 
@@ -25,11 +28,21 @@ LinearResampler::LinearResampler(const MultiChannelResampler::Builder &builder)
 }
 
 void LinearResampler::writeFrame(const float *frame) {
+#if OBOE_USE_RUST_CORE
+    oboe_rust_copy_float_buffer(mCurrentFrame.get(), mPreviousFrame.get(), getChannelCount());
+    oboe_rust_copy_float_buffer(frame, mCurrentFrame.get(), getChannelCount());
+#else
     memcpy(mPreviousFrame.get(), mCurrentFrame.get(), sizeof(float) * getChannelCount());
     memcpy(mCurrentFrame.get(), frame, sizeof(float) * getChannelCount());
+#endif
 }
 
 void LinearResampler::readFrame(float *frame) {
+#if OBOE_USE_RUST_CORE
+    oboe_rust_linear_resampler_read_frame(mPreviousFrame.get(), mCurrentFrame.get(),
+                                          frame, getChannelCount(), getIntegerPhase(),
+                                          mDenominator);
+#else
     float *previous = mPreviousFrame.get();
     float *current = mCurrentFrame.get();
     float phase = (float) getIntegerPhase() / mDenominator;
@@ -39,4 +52,5 @@ void LinearResampler::readFrame(float *frame) {
         float f1 = *current++;
         *frame++ = f0 + (phase * (f1 - f0));
     }
+#endif
 }

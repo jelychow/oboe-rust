@@ -16,6 +16,9 @@
 
 #include <cassert>
 #include "PolyphaseResamplerMono.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace RESAMPLER_OUTER_NAMESPACE::resampler;
 
@@ -27,6 +30,9 @@ PolyphaseResamplerMono::PolyphaseResamplerMono(const MultiChannelResampler::Buil
 }
 
 void PolyphaseResamplerMono::writeFrame(const float *frame) {
+#if OBOE_USE_RUST_CORE
+    oboe_rust_resampler_write_frame(mX.data(), frame, getNumTaps(), MONO, &mCursor);
+#else
     // Move cursor before write so that cursor points to last written frame in read.
     if (--mCursor < 0) {
         mCursor = getNumTaps() - 1;
@@ -38,9 +44,16 @@ void PolyphaseResamplerMono::writeFrame(const float *frame) {
     // Put ordered writes together.
     dest[0] = sample;
     dest[offset] = sample;
+#endif
 }
 
 void PolyphaseResamplerMono::readFrame(float *frame) {
+#if OBOE_USE_RUST_CORE
+    const float *coefficients = &mCoefficients[mCoefficientCursor];
+    oboe_rust_polyphase_resampler_read_frame(mX.data(), coefficients, frame,
+                                             mNumTaps, MONO, mCursor);
+    mCoefficientCursor = (mCoefficientCursor + mNumTaps) % mCoefficients.size();
+#else
     // Clear accumulator.
     float sum = 0.0;
 
@@ -60,4 +73,5 @@ void PolyphaseResamplerMono::readFrame(float *frame) {
 
     // Copy accumulator to output.
     frame[0] = sum;
+#endif
 }

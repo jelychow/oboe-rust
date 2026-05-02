@@ -24,6 +24,9 @@
 #include "PolyphaseResamplerStereo.h"
 #include "SincResampler.h"
 #include "SincResamplerStereo.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace RESAMPLER_OUTER_NAMESPACE::resampler;
 
@@ -107,6 +110,9 @@ MultiChannelResampler *MultiChannelResampler::Builder::build() {
 }
 
 void MultiChannelResampler::writeFrame(const float *frame) {
+#if OBOE_USE_RUST_CORE
+    oboe_rust_resampler_write_frame(mX.data(), frame, getNumTaps(), getChannelCount(), &mCursor);
+#else
     // Move cursor before write so that cursor points to last written frame in read.
     if (--mCursor < 0) {
         mCursor = getNumTaps() - 1;
@@ -117,6 +123,7 @@ void MultiChannelResampler::writeFrame(const float *frame) {
         // Write twice so we avoid having to wrap when reading.
         dest[channel] = dest[channel + offset] = frame[channel];
     }
+#endif
 }
 
 float MultiChannelResampler::sinc(float radians) {

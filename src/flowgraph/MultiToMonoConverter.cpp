@@ -17,6 +17,9 @@
 #include <unistd.h>
 #include "FlowGraphNode.h"
 #include "MultiToMonoConverter.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph;
 
@@ -31,11 +34,15 @@ int32_t MultiToMonoConverter::onProcess(int32_t numFrames) {
     const float *inputBuffer = input.getBuffer();
     float *outputBuffer = output.getBuffer();
     int32_t channelCount = input.getSamplesPerFrame();
+#if OBOE_USE_RUST_CORE
+    oboe_rust_multi_to_mono(inputBuffer, outputBuffer, numFrames, channelCount);
+#else
     for (int i = 0; i < numFrames; i++) {
         // read first channel of multi stream, write many
         *outputBuffer++ = *inputBuffer;
         inputBuffer += channelCount;
     }
+#endif
     return numFrames;
 }
 

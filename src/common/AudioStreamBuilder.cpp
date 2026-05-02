@@ -26,6 +26,9 @@
 #include "opensles/AudioOutputStreamOpenSLES.h"
 #include "opensles/AudioStreamOpenSLES.h"
 #include "QuirksManager.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 #ifndef DISABLE_CONVERSION
 #include "FilterAudioStream.h"
@@ -69,6 +72,36 @@ bool AudioStreamBuilder::isAAudioRecommended() {
 
 AudioStream *AudioStreamBuilder::build() {
     AudioStream *stream = nullptr;
+#if OBOE_USE_RUST_CORE
+    enum Backend {
+        BackendNone = 0,
+        BackendAAudio = 1,
+        BackendOpenSLESOutput = 2,
+        BackendOpenSLESInput = 3,
+    };
+    const int32_t backend = oboe_rust_builder_select_backend(
+            static_cast<int32_t>(mAudioApi),
+            static_cast<int32_t>(getDirection()),
+            isAAudioSupported(),
+            isAAudioRecommended());
+    switch (backend) {
+        case BackendAAudio:
+            stream = new AudioStreamAAudio(*this);
+            if (mAudioApi == AudioApi::AAudio && !isAAudioRecommended()) {
+                LOGE("Creating AAudio stream on 8.0 because it was specified. This is error prone.");
+            }
+            break;
+        case BackendOpenSLESOutput:
+            stream = new AudioOutputStreamOpenSLES(*this);
+            break;
+        case BackendOpenSLESInput:
+            stream = new AudioInputStreamOpenSLES(*this);
+            break;
+        case BackendNone:
+        default:
+            break;
+    }
+#else
     if (isAAudioRecommended() && mAudioApi != AudioApi::OpenSLES) {
         stream = new AudioStreamAAudio(*this);
     } else if (isAAudioSupported() && mAudioApi == AudioApi::AAudio) {
@@ -81,14 +114,27 @@ AudioStream *AudioStreamBuilder::build() {
             stream = new AudioInputStreamOpenSLES(*this);
         }
     }
+#endif
     return stream;
 }
 
 bool AudioStreamBuilder::isCompatible(AudioStreamBase &other) {
+#if OBOE_USE_RUST_CORE
+    return oboe_rust_builder_is_compatible(
+            getSampleRate(),
+            static_cast<int32_t>(getFormat()),
+            getFramesPerDataCallback(),
+            getChannelCount(),
+            other.getSampleRate(),
+            static_cast<int32_t>(other.getFormat()),
+            other.getFramesPerDataCallback(),
+            other.getChannelCount());
+#else
     return (getSampleRate() == oboe::Unspecified || getSampleRate() == other.getSampleRate())
            && (getFormat() == (AudioFormat)oboe::Unspecified || getFormat() == other.getFormat())
            && (getFramesPerDataCallback() == oboe::Unspecified || getFramesPerDataCallback() == other.getFramesPerDataCallback())
            && (getChannelCount() == oboe::Unspecified || getChannelCount() == other.getChannelCount());
+#endif
 }
 
 Result AudioStreamBuilder::openStream(AudioStream **streamPP) {
@@ -201,6 +247,14 @@ Result AudioStreamBuilder::openStreamInternal(AudioStream **streamPP) {
         // AAudio supports setBufferSizeInFrames() so use it.
         if (streamP->getAudioApi() == AudioApi::AAudio) {
             int32_t  optimalBufferSize = -1;
+#if OBOE_USE_RUST_CORE
+            optimalBufferSize = oboe_rust_stream_optimal_buffer_size(
+                    static_cast<int32_t>(streamP->getDirection()),
+                    static_cast<int32_t>(streamP->getPerformanceMode()),
+                    streamP->getBufferCapacityInFrames(),
+                    streamP->getFramesPerBurst(),
+                    knumBurstsForLowLatencyStreams);
+#else
             // Use a reasonable default buffer size.
             if (streamP->getDirection() == Direction::Input) {
                 // For input, small size does not improve latency because the stream is usually
@@ -211,6 +265,7 @@ Result AudioStreamBuilder::openStreamInternal(AudioStream **streamPP) {
                 optimalBufferSize = streamP->getFramesPerBurst() *
                                         knumBurstsForLowLatencyStreams;
             }
+#endif
             if (optimalBufferSize >= 0) {
                 auto setBufferResult = streamP->setBufferSizeInFrames(optimalBufferSize);
                 if (!setBufferResult) {

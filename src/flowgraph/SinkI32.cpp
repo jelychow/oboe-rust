@@ -17,6 +17,9 @@
 #include "FlowGraphNode.h"
 #include "FlowgraphUtilities.h"
 #include "SinkI32.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 #if FLOWGRAPH_ANDROID_INTERNAL
 #include <audio_utils/primitives.h>
@@ -40,7 +43,10 @@ int32_t SinkI32::read(void *data, int32_t numFrames) {
         }
         const float *signal = input.getBuffer();
         int32_t numSamples = framesRead * channelCount;
-#if FLOWGRAPH_ANDROID_INTERNAL
+#if OBOE_USE_RUST_CORE
+        oboe_rust_sink_float_to_i32(signal, intData, numSamples);
+        intData += numSamples;
+#elif FLOWGRAPH_ANDROID_INTERNAL
         memcpy_to_i32_from_float(intData, signal, numSamples);
         intData += numSamples;
         signal += numSamples;

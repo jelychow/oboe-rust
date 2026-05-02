@@ -18,6 +18,9 @@
 #include <unistd.h>
 #include "FlowGraphNode.h"
 #include "ClipToRange.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph;
 
@@ -30,9 +33,13 @@ int32_t ClipToRange::onProcess(int32_t numFrames) {
     float *outputBuffer = output.getBuffer();
 
     int32_t numSamples = numFrames * output.getSamplesPerFrame();
+#if OBOE_USE_RUST_CORE
+    oboe_rust_clip_to_range(inputBuffer, outputBuffer, numSamples, mMinimum, mMaximum);
+#else
     for (int32_t i = 0; i < numSamples; i++) {
         *outputBuffer++ = std::min(mMaximum, std::max(mMinimum, *inputBuffer++));
     }
+#endif
 
     return numFrames;
 }

@@ -18,6 +18,9 @@
 #include <cassert>
 #include <math.h>
 #include "SincResampler.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace RESAMPLER_OUTER_NAMESPACE::resampler;
 
@@ -37,6 +40,21 @@ SincResampler::SincResampler(const MultiChannelResampler::Builder &builder)
 }
 
 void SincResampler::readFrame(float *frame) {
+#if OBOE_USE_RUST_CORE
+    (void) mSingleFrame2.size();
+    const double tablePhase = getIntegerPhase() * mPhaseScaler;
+    const int indexLow = static_cast<int>(floor(tablePhase));
+    const int indexHigh = indexLow + 1; // OK because using a guard row.
+    assert (indexHigh < mNumRows);
+    const float *coefficientsLow = &mCoefficients[static_cast<size_t>(indexLow)
+                                            * static_cast<size_t>(getNumTaps())];
+    const float *coefficientsHigh = &mCoefficients[static_cast<size_t>(indexHigh)
+                                             * static_cast<size_t>(getNumTaps())];
+    const float *xFrame = &mX[static_cast<size_t>(mCursor) * static_cast<size_t>(getChannelCount())];
+    const float fraction = tablePhase - indexLow;
+    oboe_rust_sinc_resampler_read_frame(xFrame, coefficientsLow, coefficientsHigh,
+                                         frame, mNumTaps, getChannelCount(), fraction);
+#else
     // Clear accumulator for mixing.
     std::fill(mSingleFrame.begin(), mSingleFrame.end(), 0.0);
     std::fill(mSingleFrame2.begin(), mSingleFrame2.end(), 0.0);
@@ -69,4 +87,5 @@ void SincResampler::readFrame(float *frame) {
         const float high = mSingleFrame2[channel];
         frame[channel] = low + (fraction * (high - low));
     }
+#endif
 }

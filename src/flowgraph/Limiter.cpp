@@ -19,6 +19,9 @@
 #include <unistd.h>
 #include "FlowGraphNode.h"
 #include "Limiter.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph;
 
@@ -32,6 +35,10 @@ int32_t Limiter::onProcess(int32_t numFrames) {
 
     int32_t numSamples = numFrames * output.getSamplesPerFrame();
 
+#if OBOE_USE_RUST_CORE
+    mLastValidOutput = oboe_rust_limiter_process_buffer(
+            inputBuffer, outputBuffer, numSamples, mLastValidOutput);
+#else
     // Cache the last valid output to reduce memory read/write
     float lastValidOutput = mLastValidOutput;
 
@@ -44,6 +51,7 @@ int32_t Limiter::onProcess(int32_t numFrames) {
         *outputBuffer++ = lastValidOutput;
     }
     mLastValidOutput = lastValidOutput;
+#endif
 
     return numFrames;
 }

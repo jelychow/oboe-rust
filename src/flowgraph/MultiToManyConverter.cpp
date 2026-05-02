@@ -17,6 +17,9 @@
 #include <unistd.h>
 #include "FlowGraphNode.h"
 #include "MultiToManyConverter.h"
+#if OBOE_USE_RUST_CORE
+#include "rust/oboe_rust_core.h"
+#endif
 
 using namespace FLOWGRAPH_OUTER_NAMESPACE::flowgraph;
 
@@ -34,13 +37,17 @@ int32_t MultiToManyConverter::onProcess(int32_t numFrames) {
     int32_t channelCount = input.getSamplesPerFrame();
 
     for (int ch = 0; ch < channelCount; ch++) {
-        const float *inputBuffer = input.getBuffer() + ch;
         float *outputBuffer = outputs[ch]->getBuffer();
 
+#if OBOE_USE_RUST_CORE
+        oboe_rust_multi_to_many_channel(input.getBuffer(), outputBuffer, numFrames, channelCount, ch);
+#else
+        const float *inputBuffer = input.getBuffer() + ch;
         for (int i = 0; i < numFrames; i++) {
             *outputBuffer++ = *inputBuffer;
             inputBuffer += channelCount;
         }
+#endif
     }
 
     return numFrames;
