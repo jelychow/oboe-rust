@@ -2,6 +2,7 @@
 
 pub mod builder;
 pub mod error;
+pub mod stream;
 pub mod types;
 
 pub const VERSION_CODE: i32 = 1;
