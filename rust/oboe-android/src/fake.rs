@@ -1,6 +1,6 @@
 use crate::backend::AudioBackend;
 use oboe_core::builder::StreamBuilder;
-use oboe_core::error::Result;
+use oboe_core::error::{Error, Result};
 use oboe_core::stream::{StreamCore, StreamState};
 
 #[derive(Debug)]
@@ -47,5 +47,15 @@ mod tests {
         assert_eq!(backend.state(), StreamState::Stopped);
         assert_eq!(backend.close(), Ok(()));
         assert_eq!(backend.state(), StreamState::Closed);
+    }
+
+    #[test]
+    fn fake_backend_rejects_invalid_builder() {
+        let builder = StreamBuilder {
+            channel_count: 0,
+            ..StreamBuilder::default()
+        };
+
+        assert_eq!(FakeBackend::open(&builder).unwrap_err(), Error::InvalidArgument);
     }
 }
