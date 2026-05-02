@@ -57,6 +57,10 @@ publish gates. Use `docs/rust-android-device-smoke.md` for that path.
 
 The Android wrapper can be published as an AAR to GitHub Packages:
 
+GitHub Packages requires authentication when installing packages. For Gradle,
+provide `gpr.user` and `gpr.key` in `~/.gradle/gradle.properties`, or use
+`GITHUB_ACTOR` and `GITHUB_TOKEN` in CI:
+
 ```groovy
 repositories {
     maven {
@@ -71,6 +75,38 @@ repositories {
 dependencies {
     implementation("io.github.jelychow.oboe:oboe-rust-android:0.1.0-alpha.1")
 }
+```
+
+For Apache Maven consumers, configure the GitHub Packages repository and server
+credentials in `~/.m2/settings.xml`, then declare the AAR dependency with
+`<type>aar</type>`:
+
+```xml
+<repositories>
+  <repository>
+    <id>github</id>
+    <url>https://maven.pkg.github.com/jelychow/oboe-rust</url>
+  </repository>
+</repositories>
+
+<dependency>
+  <groupId>io.github.jelychow.oboe</groupId>
+  <artifactId>oboe-rust-android</artifactId>
+  <version>0.1.0-alpha.1</version>
+  <type>aar</type>
+</dependency>
+```
+
+```xml
+<settings>
+  <servers>
+    <server>
+      <id>github</id>
+      <username>${env.GITHUB_ACTOR}</username>
+      <password>${env.GITHUB_TOKEN}</password>
+    </server>
+  </servers>
+</settings>
 ```
 
 Build the native JNI libraries before publishing so the AAR contains the
@@ -102,7 +138,10 @@ The repository also includes `.github/workflows/publish-github-packages.yml`,
 which verifies and publishes the Android wrapper package automatically when a
 GitHub Release is published. Use release tags such as `v0.1.0-alpha.1`; the
 workflow strips the leading `v` and publishes package version `0.1.0-alpha.1`.
-Manual workflow dispatch remains available for retrying a version explicitly.
+After publishing, the workflow compiles a temporary Android app that consumes
+the package from GitHub Packages and checks that all four `liboboe_jni.so`
+ABIs are present. Manual workflow dispatch remains available for retrying a
+version explicitly.
 
 ## Android Gradle Sync
 

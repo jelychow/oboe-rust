@@ -51,6 +51,8 @@ Android 示例应用使用的 JNI `.so` 构建属于 smoke check，不是 crates
 
 Android wrapper 可以作为 AAR 发布到 GitHub Packages：
 
+GitHub Packages 安装 package 时也需要认证。Gradle 本地使用时可以在 `~/.gradle/gradle.properties` 里配置 `gpr.user` 和 `gpr.key`，CI 里可以使用 `GITHUB_ACTOR` 和 `GITHUB_TOKEN`：
+
 ```groovy
 repositories {
     maven {
@@ -65,6 +67,36 @@ repositories {
 dependencies {
     implementation("io.github.jelychow.oboe:oboe-rust-android:0.1.0-alpha.1")
 }
+```
+
+如果使用 Apache Maven，需要在 `~/.m2/settings.xml` 配置 GitHub Packages repository 和 server 凭证，然后 dependency 里声明这是 AAR：
+
+```xml
+<repositories>
+  <repository>
+    <id>github</id>
+    <url>https://maven.pkg.github.com/jelychow/oboe-rust</url>
+  </repository>
+</repositories>
+
+<dependency>
+  <groupId>io.github.jelychow.oboe</groupId>
+  <artifactId>oboe-rust-android</artifactId>
+  <version>0.1.0-alpha.1</version>
+  <type>aar</type>
+</dependency>
+```
+
+```xml
+<settings>
+  <servers>
+    <server>
+      <id>github</id>
+      <username>${env.GITHUB_ACTOR}</username>
+      <password>${env.GITHUB_TOKEN}</password>
+    </server>
+  </servers>
+</settings>
 ```
 
 发布前先构建 JNI 动态库，确保 AAR 里带有 Android `.so` 文件：
@@ -91,6 +123,7 @@ GITHUB_ACTOR=<github-user> GITHUB_TOKEN=<token> \
 ```
 
 仓库内置 `.github/workflows/publish-github-packages.yml`，会在 GitHub Release 发布时自动验证并发布 Android wrapper package。建议 release tag 使用 `v0.1.0-alpha.1` 这种格式；workflow 会去掉前缀 `v`，最终发布 package version `0.1.0-alpha.1`。手动触发 workflow 仍然可用，适合显式重试某个版本。
+发布完成后，workflow 还会临时创建一个 Android app，从 GitHub Packages 远端拉取刚发布的 package 编译，并检查 APK 里是否包含四个 ABI 的 `liboboe_jni.so`。
 
 ## Android Gradle Sync
 

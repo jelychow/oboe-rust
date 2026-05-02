@@ -143,3 +143,104 @@ jobs:
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify published package can be consumed
+        shell: bash
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_VERSION: ${{ needs.verify-android-wrapper-package.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          consumer_dir="${RUNNER_TEMP}/oboe-rust-package-consumer"
+          rm -rf "$consumer_dir"
+          mkdir -p "$consumer_dir/app/src/main"
+
+          cat > "$consumer_dir/settings.gradle" <<'GRADLE'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+                  maven {
+                      url = uri("https://maven.pkg.github.com/jelychow/oboe-rust")
+                      credentials {
+                          username = System.getenv("GITHUB_ACTOR")
+                          password = System.getenv("GITHUB_TOKEN")
+                      }
+                  }
+              }
+          }
+
+          rootProject.name = 'oboe-rust-package-consumer'
+          include ':app'
+          GRADLE
+
+          cat > "$consumer_dir/build.gradle" <<'GRADLE'
+          plugins {
+              id 'com.android.application' version '8.5.1' apply false
+          }
+          GRADLE
+
+          cat > "$consumer_dir/app/build.gradle" <<GRADLE
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.example.oboerustconsumer'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId 'com.example.oboerustconsumer'
+                  minSdk 26
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+              }
+          }
+
+          dependencies {
+              implementation "io.github.jelychow.oboe:oboe-rust-android:${PACKAGE_VERSION}"
+          }
+          GRADLE
+
+          cat > "$consumer_dir/app/src/main/AndroidManifest.xml" <<'XML'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+          XML
+
+          for attempt in 1 2 3; do
+              if ./android/oboe-wrapper/gradlew -p "$consumer_dir" :app:assembleDebug --no-daemon --console=plain; then
+                  break
+              fi
+              if [[ "$attempt" == "3" ]]; then
+                  exit 1
+              fi
+              sleep 20
+          done
+
+          python3 - <<PY
+          import zipfile
+          apk = "${consumer_dir}/app/build/outputs/apk/debug/app-debug.apk"
+          required = {
+              "lib/arm64-v8a/liboboe_jni.so",
+              "lib/armeabi-v7a/liboboe_jni.so",
+              "lib/x86/liboboe_jni.so",
+              "lib/x86_64/liboboe_jni.so",
+          }
+          with zipfile.ZipFile(apk) as package:
+              names = set(package.namelist())
+          missing = sorted(required - names)
+          if missing:
+              raise SystemExit("Missing JNI libraries in consumer APK: " + ", ".join(missing))
+          print("Verified published oboe-rust-android package in consumer APK.")
+          PY
