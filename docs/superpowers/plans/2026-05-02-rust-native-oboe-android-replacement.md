@@ -970,14 +970,32 @@ impl AudioBackend for AAudioBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use oboe_core::error::Error;
 
     #[test]
     fn aaudio_backend_supports_core_lifecycle_before_real_ffi() {
         let mut backend = AAudioBackend::open(&StreamBuilder::default()).unwrap();
+        assert_eq!(backend.state(), StreamState::Open);
         assert_eq!(backend.request_start(), Ok(()));
         assert_eq!(backend.state(), StreamState::Started);
         assert_eq!(backend.request_stop(), Ok(()));
+        assert_eq!(backend.state(), StreamState::Stopped);
         assert_eq!(backend.close(), Ok(()));
+        assert_eq!(backend.state(), StreamState::Closed);
+        assert_eq!(backend.request_start(), Err(Error::Closed));
+    }
+
+    #[test]
+    fn aaudio_backend_rejects_invalid_builder() {
+        let builder = StreamBuilder {
+            channel_count: 0,
+            ..StreamBuilder::default()
+        };
+
+        assert_eq!(
+            AAudioBackend::open(&builder).unwrap_err(),
+            Error::InvalidArgument
+        );
     }
 }
 ```
@@ -993,11 +1011,11 @@ use oboe_core::error::Result;
 use oboe_core::stream::{StreamCore, StreamState};
 
 #[derive(Debug)]
-pub struct OpenSlBackend {
+pub struct OpenSLESBackend {
     core: StreamCore,
 }
 
-impl AudioBackend for OpenSlBackend {
+impl AudioBackend for OpenSLESBackend {
     fn open(builder: &StreamBuilder) -> Result<Self> {
         builder.validate()?;
         Ok(Self {
@@ -1025,14 +1043,32 @@ impl AudioBackend for OpenSlBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use oboe_core::error::Error;
 
     #[test]
     fn opensl_backend_supports_core_lifecycle_before_real_ffi() {
-        let mut backend = OpenSlBackend::open(&StreamBuilder::default()).unwrap();
+        let mut backend = OpenSLESBackend::open(&StreamBuilder::default()).unwrap();
+        assert_eq!(backend.state(), StreamState::Open);
         assert_eq!(backend.request_start(), Ok(()));
         assert_eq!(backend.state(), StreamState::Started);
         assert_eq!(backend.request_stop(), Ok(()));
+        assert_eq!(backend.state(), StreamState::Stopped);
         assert_eq!(backend.close(), Ok(()));
+        assert_eq!(backend.state(), StreamState::Closed);
+        assert_eq!(backend.request_stop(), Err(Error::Closed));
+    }
+
+    #[test]
+    fn opensl_backend_rejects_invalid_builder() {
+        let builder = StreamBuilder {
+            channel_count: 0,
+            ..StreamBuilder::default()
+        };
+
+        assert_eq!(
+            OpenSLESBackend::open(&builder).unwrap_err(),
+            Error::InvalidArgument
+        );
     }
 }
 ```
@@ -1113,7 +1149,7 @@ Write `rust/oboe-jni/src/lib.rs`:
 
 use oboe_android::aaudio::AAudioBackend;
 use oboe_android::backend::AudioBackend;
-use oboe_android::opensles::OpenSlBackend;
+use oboe_android::opensles::OpenSLESBackend;
 use oboe_core::builder::StreamBuilder;
 use oboe_core::stream::StreamState;
 use oboe_core::types::AudioApi;
@@ -1131,14 +1167,14 @@ type JNIEnv = *mut core::ffi::c_void;
 
 enum NativeStream {
     AAudio(AAudioBackend),
-    OpenSl(OpenSlBackend),
+    OpenSLES(OpenSLESBackend),
 }
 
 impl NativeStream {
     fn request_start(&mut self) -> i32 {
         match self {
             NativeStream::AAudio(stream) => stream.request_start(),
-            NativeStream::OpenSl(stream) => stream.request_start(),
+            NativeStream::OpenSLES(stream) => stream.request_start(),
         }
         .map(|_| 0)
         .unwrap_or(-1)
@@ -1147,7 +1183,7 @@ impl NativeStream {
     fn request_stop(&mut self) -> i32 {
         match self {
             NativeStream::AAudio(stream) => stream.request_stop(),
-            NativeStream::OpenSl(stream) => stream.request_stop(),
+            NativeStream::OpenSLES(stream) => stream.request_stop(),
         }
         .map(|_| 0)
         .unwrap_or(-1)
@@ -1156,7 +1192,7 @@ impl NativeStream {
     fn close(&mut self) -> i32 {
         match self {
             NativeStream::AAudio(stream) => stream.close(),
-            NativeStream::OpenSl(stream) => stream.close(),
+            NativeStream::OpenSLES(stream) => stream.close(),
         }
         .map(|_| 0)
         .unwrap_or(-1)
@@ -1165,7 +1201,7 @@ impl NativeStream {
     fn state(&self) -> StreamState {
         match self {
             NativeStream::AAudio(stream) => stream.state(),
-            NativeStream::OpenSl(stream) => stream.state(),
+            NativeStream::OpenSLES(stream) => stream.state(),
         }
     }
 }
@@ -1194,7 +1230,7 @@ pub extern "system" fn Java_com_google_oboe_AudioStream_nativeOpen(
         AudioApi::AAudio | AudioApi::Unspecified => {
             AAudioBackend::open(&builder).map(NativeStream::AAudio)
         }
-        AudioApi::OpenSLES => OpenSlBackend::open(&builder).map(NativeStream::OpenSl),
+        AudioApi::OpenSLES => OpenSLESBackend::open(&builder).map(NativeStream::OpenSLES),
     };
     match stream {
         Ok(stream) => Box::into_raw(Box::new(stream)) as jlong,
@@ -1748,7 +1784,7 @@ Map `Direction::Output` to `AAUDIO_DIRECTION_OUTPUT`, `Direction::Input` to `AAU
 
 - [ ] **Step 4: Implement real OpenSL calls behind a platform module**
 
-Replace the OpenSL skeleton with a backend that owns engine, output mixer, player/recorder, and buffer queue pointers. Keep `OpenSlBackend` name stable.
+Replace the OpenSL skeleton with a backend that owns engine, output mixer, player/recorder, and buffer queue pointers. Keep `OpenSLESBackend` name stable.
 
 The file must expose the same trait methods as AAudio. For the first replacement phase, support float buffers by converting to/from i16 internally through `oboe-core/src/format.rs` before queueing buffers when OpenSL requires PCM 16-bit.
 
@@ -1956,4 +1992,4 @@ git commit -m "Record Rust-native replacement verification status" \
 
 - Spec coverage: The plan covers Rust crate API, Java wrapper, AAudio, OpenSL ES, JNI, `src` retirement, and Rust/Android wrapper tests.
 - Empty-marker scan: The plan has no empty requirement markers, no undefined fill-in steps, and no task that points to another task instead of giving concrete commands.
-- Type consistency: `AudioApi`, `StreamBuilder`, `StreamState`, `AudioBackend`, `AAudioBackend`, `OpenSlBackend`, `AudioStreamBuilder`, and `AudioStream` are named consistently across Rust, JNI, and Java.
+- Type consistency: `AudioApi`, `StreamBuilder`, `StreamState`, `AudioBackend`, `AAudioBackend`, `OpenSLESBackend`, `AudioStreamBuilder`, and `AudioStream` are named consistently across Rust, JNI, and Java.
