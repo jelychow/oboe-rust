@@ -41,7 +41,9 @@ public final class AudioStream implements AutoCloseable {
     @Override
     public void close() {
         if (nativeHandle != 0) {
-            nativeClose(nativeHandle);
+            if (nativeClose(nativeHandle) != 0) {
+                throw new IllegalStateException("native stream close failed");
+            }
             nativeHandle = 0;
         }
     }
