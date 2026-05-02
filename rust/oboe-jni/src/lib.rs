@@ -8,11 +8,19 @@ use oboe_android::aaudio::AAudioBackend;
 use oboe_android::backend::AudioBackend;
 use oboe_android::opensles::OpenSLESBackend;
 use oboe_core::builder::StreamBuilder;
+use oboe_core::extensions::{
+    CallbackConfig, FallbackMode, OffloadDelayPadding, PlaybackParameters, PresentationTimestamp,
+    StretchMode,
+};
 use oboe_core::stream::StreamState;
 use oboe_core::types::AudioApi;
 
 #[allow(non_camel_case_types)]
+type jboolean = u8;
+#[allow(non_camel_case_types)]
 type jint = i32;
+#[allow(non_camel_case_types)]
+type jfloat = f32;
 #[allow(non_camel_case_types)]
 type jlong = i64;
 #[allow(non_camel_case_types)]
@@ -70,6 +78,48 @@ impl NativeStream {
             Self::AAudio(stream) => stream.state(),
             Self::OpenSLES(stream) => stream.state(),
         }
+    }
+
+    fn set_callback_config(&mut self, config: CallbackConfig) -> jint {
+        result_code(match self {
+            Self::AAudio(stream) => stream.set_callback_config(config),
+            Self::OpenSLES(stream) => stream.set_callback_config(config),
+        })
+    }
+
+    fn set_offload_delay_padding(&mut self, delay_padding: OffloadDelayPadding) -> jint {
+        result_code(match self {
+            Self::AAudio(stream) => stream.set_offload_delay_padding(delay_padding),
+            Self::OpenSLES(stream) => stream.set_offload_delay_padding(delay_padding),
+        })
+    }
+
+    fn set_offload_end_of_stream(&mut self) -> jint {
+        result_code(match self {
+            Self::AAudio(stream) => stream.set_offload_end_of_stream(),
+            Self::OpenSLES(stream) => stream.set_offload_end_of_stream(),
+        })
+    }
+
+    fn set_playback_parameters(&mut self, parameters: PlaybackParameters) -> jint {
+        result_code(match self {
+            Self::AAudio(stream) => stream.set_playback_parameters(parameters),
+            Self::OpenSLES(stream) => stream.set_playback_parameters(parameters),
+        })
+    }
+
+    fn set_presentation_timestamp(&mut self, timestamp: PresentationTimestamp) -> jint {
+        result_code(match self {
+            Self::AAudio(stream) => stream.set_presentation_timestamp(timestamp),
+            Self::OpenSLES(stream) => stream.set_presentation_timestamp(timestamp),
+        })
+    }
+
+    fn set_route_device_id(&mut self, device_id: jint) -> jint {
+        result_code(match self {
+            Self::AAudio(stream) => stream.set_route_device_id(device_id),
+            Self::OpenSLES(stream) => stream.set_route_device_id(device_id),
+        })
     }
 
     #[cfg(test)]
@@ -130,6 +180,26 @@ fn api_from_jint(api: jint) -> AudioApi {
         2 => AudioApi::OpenSLES,
         _ => AudioApi::Unspecified,
     }
+}
+
+fn jboolean_to_bool(value: jboolean) -> bool {
+    value != 0
+}
+
+fn playback_parameters_from_jni(
+    fallback_mode: jint,
+    stretch_mode: jint,
+    pitch: jfloat,
+    speed: jfloat,
+) -> oboe_core::error::Result<PlaybackParameters> {
+    let parameters = PlaybackParameters {
+        fallback_mode: FallbackMode::try_from(fallback_mode)?,
+        stretch_mode: StretchMode::try_from(stretch_mode)?,
+        pitch,
+        speed,
+    };
+    parameters.validate()?;
+    Ok(parameters)
 }
 
 fn selected_backend_api(requested: AudioApi) -> AudioApi {
@@ -225,6 +295,97 @@ pub extern "system" fn Java_com_google_oboe_AudioStream_nativeGetState(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeSetCallbackConfig(
+    _env: JNIEnv,
+    _self: jobject,
+    handle: jlong,
+    data_callback: jboolean,
+    partial_data_callback: jboolean,
+    presentation_callback: jboolean,
+    routing_callback: jboolean,
+    frames_per_data_callback: jint,
+) -> jint {
+    let config = CallbackConfig {
+        data_callback: jboolean_to_bool(data_callback),
+        partial_data_callback: jboolean_to_bool(partial_data_callback),
+        presentation_callback: jboolean_to_bool(presentation_callback),
+        routing_callback: jboolean_to_bool(routing_callback),
+        frames_per_data_callback,
+    };
+    with_stream_mut(handle, |stream| stream.set_callback_config(config))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeSetOffloadDelayPadding(
+    _env: JNIEnv,
+    _self: jobject,
+    handle: jlong,
+    delay_in_frames: jint,
+    padding_in_frames: jint,
+) -> jint {
+    let delay_padding = OffloadDelayPadding {
+        delay_in_frames,
+        padding_in_frames,
+    };
+    with_stream_mut(handle, |stream| {
+        stream.set_offload_delay_padding(delay_padding)
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeSetOffloadEndOfStream(
+    _env: JNIEnv,
+    _self: jobject,
+    handle: jlong,
+) -> jint {
+    with_stream_mut(handle, NativeStream::set_offload_end_of_stream)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeSetPlaybackParameters(
+    _env: JNIEnv,
+    _self: jobject,
+    handle: jlong,
+    fallback_mode: jint,
+    stretch_mode: jint,
+    pitch: jfloat,
+    speed: jfloat,
+) -> jint {
+    let parameters = match playback_parameters_from_jni(fallback_mode, stretch_mode, pitch, speed) {
+        Ok(parameters) => parameters,
+        Err(_) => return -1,
+    };
+    with_stream_mut(handle, |stream| stream.set_playback_parameters(parameters))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeSetPresentationTimestamp(
+    _env: JNIEnv,
+    _self: jobject,
+    handle: jlong,
+    frame_position: jlong,
+    timestamp_nanos: jlong,
+) -> jint {
+    let timestamp = PresentationTimestamp {
+        frame_position,
+        timestamp_nanos,
+    };
+    with_stream_mut(handle, |stream| {
+        stream.set_presentation_timestamp(timestamp)
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeSetRouteDeviceId(
+    _env: JNIEnv,
+    _self: jobject,
+    handle: jlong,
+    device_id: jint,
+) -> jint {
+    with_stream_mut(handle, |stream| stream.set_route_device_id(device_id))
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_google_oboe_AudioStream_nativeClose(
     _env: JNIEnv,
     _self: jobject,
@@ -271,6 +432,59 @@ mod tests {
         );
         assert_eq!(
             Java_com_google_oboe_AudioStream_nativeClose(null_mut(), null_mut(), 0),
+            -1
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetCallbackConfig(
+                null_mut(),
+                null_mut(),
+                0,
+                1,
+                0,
+                1,
+                1,
+                96,
+            ),
+            -1
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetOffloadDelayPadding(
+                null_mut(),
+                null_mut(),
+                0,
+                12,
+                34,
+            ),
+            -1
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetOffloadEndOfStream(null_mut(), null_mut(), 0),
+            -1
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetPlaybackParameters(
+                null_mut(),
+                null_mut(),
+                0,
+                1,
+                1,
+                1.0,
+                1.0,
+            ),
+            -1
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetPresentationTimestamp(
+                null_mut(),
+                null_mut(),
+                0,
+                128,
+                1024,
+            ),
+            -1
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetRouteDeviceId(null_mut(), null_mut(), 0, 7),
             -1
         );
     }
@@ -358,6 +572,127 @@ mod tests {
             let stream = registry.streams.get(&handle).unwrap();
             assert_eq!(stream.backend_api(), AudioApi::OpenSLES);
         }
+
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeClose(null_mut(), null_mut(), handle),
+            0
+        );
+    }
+
+    #[test]
+    fn aaudio_handle_accepts_callback_and_extension_paths() {
+        let handle = Java_com_google_oboe_AudioStream_nativeOpen(null_mut(), null_mut(), 1);
+        assert_ne!(handle, 0);
+
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetCallbackConfig(
+                null_mut(),
+                null_mut(),
+                handle,
+                0,
+                1,
+                1,
+                1,
+                96,
+            ),
+            0
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetOffloadDelayPadding(
+                null_mut(),
+                null_mut(),
+                handle,
+                12,
+                34,
+            ),
+            0
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetOffloadEndOfStream(
+                null_mut(),
+                null_mut(),
+                handle,
+            ),
+            0
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetPlaybackParameters(
+                null_mut(),
+                null_mut(),
+                handle,
+                1,
+                1,
+                1.25,
+                0.75,
+            ),
+            0
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetPresentationTimestamp(
+                null_mut(),
+                null_mut(),
+                handle,
+                128,
+                1024,
+            ),
+            0
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetRouteDeviceId(
+                null_mut(),
+                null_mut(),
+                handle,
+                7,
+            ),
+            0
+        );
+
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeClose(null_mut(), null_mut(), handle),
+            0
+        );
+    }
+
+    #[test]
+    fn opensles_handle_keeps_callback_path_but_rejects_aaudio_only_extensions() {
+        let handle = Java_com_google_oboe_AudioStream_nativeOpen(null_mut(), null_mut(), 2);
+        assert_ne!(handle, 0);
+
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetCallbackConfig(
+                null_mut(),
+                null_mut(),
+                handle,
+                1,
+                0,
+                0,
+                0,
+                96,
+            ),
+            0
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetOffloadDelayPadding(
+                null_mut(),
+                null_mut(),
+                handle,
+                12,
+                34,
+            ),
+            -1
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetPlaybackParameters(
+                null_mut(),
+                null_mut(),
+                handle,
+                1,
+                1,
+                1.0,
+                1.0,
+            ),
+            -1
+        );
 
         assert_eq!(
             Java_com_google_oboe_AudioStream_nativeClose(null_mut(), null_mut(), handle),

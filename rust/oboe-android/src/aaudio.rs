@@ -1,6 +1,9 @@
 use crate::backend::AudioBackend;
 use oboe_core::builder::StreamBuilder;
 use oboe_core::error::{Error, Result};
+use oboe_core::extensions::{
+    CallbackConfig, OffloadDelayPadding, PlaybackParameters, PresentationTimestamp,
+};
 use oboe_core::stream::{StreamCore, StreamState};
 use oboe_core::types::Format;
 
@@ -20,7 +23,7 @@ impl AudioBackend for AAudioBackend {
         builder.validate()?;
         validate_first_phase_format(builder.format)?;
         Ok(Self {
-            core: StreamCore::new_open(),
+            core: StreamCore::new_open_with_builder(builder)?,
             channel_count: builder.channel_count,
             format: builder.format,
             platform: platform::AAudioPlatformStream::open(builder)?,
@@ -65,6 +68,30 @@ impl AudioBackend for AAudioBackend {
         validate_buffer_len(audio.len(), self.channel_count)?;
         self.platform
             .read_f32(audio, timeout_nanos, self.channel_count, self.format)
+    }
+
+    fn set_callback_config(&mut self, config: CallbackConfig) -> Result<()> {
+        self.core.set_callback_config(config)
+    }
+
+    fn set_offload_delay_padding(&mut self, delay_padding: OffloadDelayPadding) -> Result<()> {
+        self.core.set_offload_delay_padding(delay_padding)
+    }
+
+    fn set_offload_end_of_stream(&mut self) -> Result<()> {
+        self.core.set_offload_end_of_stream()
+    }
+
+    fn set_playback_parameters(&mut self, parameters: PlaybackParameters) -> Result<()> {
+        self.core.set_playback_parameters(parameters)
+    }
+
+    fn set_presentation_timestamp(&mut self, timestamp: PresentationTimestamp) -> Result<()> {
+        self.core.set_presentation_timestamp(timestamp)
+    }
+
+    fn set_route_device_id(&mut self, device_id: i32) -> Result<()> {
+        self.core.set_route_device_id(device_id)
     }
 }
 
