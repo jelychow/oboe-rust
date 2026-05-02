@@ -129,6 +129,8 @@ GITHUB_ACTOR=<github-user> GITHUB_TOKEN=<token> \
 
 JitPack 可以从公开 GitHub 仓库构建 Android wrapper，不需要 GitHub Packages 凭证。先添加 JitPack repository：
 
+JitPack public 下载要求这个 GitHub 仓库本身是公开可见的。如果 JitPack 返回 `Repo not found or no token provided`，需要把仓库改成 public，或者配置 JitPack 的私有仓库访问。
+
 ```groovy
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)

@@ -148,6 +148,10 @@ version explicitly.
 JitPack can build the Android wrapper from the public GitHub repository without
 GitHub Packages credentials. Add JitPack as a repository:
 
+Public JitPack downloads require this GitHub repository to be publicly visible.
+If JitPack returns `Repo not found or no token provided`, make the repository
+public or configure JitPack private repository access.
+
 ```groovy
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
