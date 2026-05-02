@@ -2,6 +2,9 @@
 
 pub mod builder;
 pub mod error;
+pub mod fifo;
+pub mod format;
+pub mod resampler;
 pub mod stream;
 pub mod types;
 
