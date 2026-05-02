@@ -724,6 +724,9 @@ Write `rust/oboe-core/src/fifo.rs`:
 ```rust
 use crate::error::{Error, Result};
 
+/// Ring buffer for scalar `f32` samples.
+///
+/// Frame-aware buffering should layer channel-count handling above this FIFO.
 #[derive(Debug)]
 pub struct Fifo {
     data: Vec<f32>,
@@ -733,12 +736,12 @@ pub struct Fifo {
 }
 
 impl Fifo {
-    pub fn with_capacity(frames: usize) -> Result<Self> {
-        if frames == 0 {
+    pub fn with_capacity(sample_capacity: usize) -> Result<Self> {
+        if sample_capacity == 0 {
             return Err(Error::InvalidArgument);
         }
         Ok(Self {
-            data: vec![0.0; frames],
+            data: vec![0.0; sample_capacity],
             read: 0,
             write: 0,
             len: 0,
@@ -779,7 +782,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn fifo_truncates_writes_and_preserves_order_across_wrap() {
+    fn sample_fifo_truncates_writes_and_preserves_order_across_wrap() {
         let mut fifo = Fifo::with_capacity(3).unwrap();
         assert_eq!(fifo.write(&[1.0, 2.0, 3.0, 4.0]), 3);
         let mut first = [0.0; 2];
@@ -810,20 +813,12 @@ pub fn bytes_per_sample(format: Format) -> usize {
 }
 
 pub fn i16_to_float(sample: i16) -> f32 {
-    if sample == i16::MIN {
-        -1.0
-    } else {
-        sample as f32 / i16::MAX as f32
-    }
+    sample as f32 * (1.0 / 32768.0)
 }
 
 pub fn float_to_i16(sample: f32) -> i16 {
-    let clipped = sample.clamp(-1.0, 1.0);
-    if clipped <= -1.0 {
-        i16::MIN
-    } else {
-        (clipped * i16::MAX as f32).round() as i16
-    }
+    let scaled = (sample * 32768.0) as i32;
+    scaled.clamp(i16::MIN as i32, i16::MAX as i32) as i16
 }
 
 #[cfg(test)]
@@ -832,6 +827,7 @@ mod tests {
 
     #[test]
     fn reports_sample_sizes() {
+        assert_eq!(bytes_per_sample(Format::Unspecified), 0);
         assert_eq!(bytes_per_sample(Format::I16), 2);
         assert_eq!(bytes_per_sample(Format::I24), 3);
         assert_eq!(bytes_per_sample(Format::I32), 4);
@@ -840,9 +836,14 @@ mod tests {
 
     #[test]
     fn converts_i16_and_float_with_clipping() {
+        assert_eq!(i16_to_float(i16::MIN), -1.0);
+        assert!((i16_to_float(-32767) - (-32767.0 / 32768.0)).abs() < f32::EPSILON);
         assert_eq!(float_to_i16(2.0), i16::MAX);
         assert_eq!(float_to_i16(-2.0), i16::MIN);
-        assert!((i16_to_float(i16::MAX) - 1.0).abs() < 0.0001);
+        assert_eq!(float_to_i16(-1.0), i16::MIN);
+        assert_eq!(float_to_i16(0.5), 16384);
+        assert_eq!(float_to_i16(1.0), i16::MAX);
+        assert!((i16_to_float(i16::MAX) - (32767.0 / 32768.0)).abs() < f32::EPSILON);
     }
 }
 ```

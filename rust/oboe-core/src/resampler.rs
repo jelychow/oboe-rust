@@ -12,6 +12,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn interpolates_interval_endpoints() {
+        assert_eq!(linear_interpolate(2.0, 6.0, 0.0), Ok(2.0));
+        assert_eq!(linear_interpolate(2.0, 6.0, 1.0), Ok(6.0));
+    }
+
+    #[test]
     fn interpolates_midpoint() {
         assert_eq!(linear_interpolate(2.0, 6.0, 0.5), Ok(4.0));
     }
@@ -24,6 +30,14 @@ mod tests {
         );
         assert_eq!(
             linear_interpolate(2.0, 6.0, 1.1),
+            Err(Error::InvalidArgument)
+        );
+    }
+
+    #[test]
+    fn rejects_nan_fraction() {
+        assert_eq!(
+            linear_interpolate(2.0, 6.0, f32::NAN),
             Err(Error::InvalidArgument)
         );
     }
