@@ -1,6 +1,7 @@
 package com.example.openairustrealtime.core.network
 
 import com.example.openairustrealtime.core.audio.PcmAudio
+import com.example.openairustrealtime.core.audio.RealtimeAudioDiagnostics
 import com.example.openairustrealtime.core.util.SecretRedactor
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
@@ -129,6 +130,22 @@ class OpenAiRealtimeSession(
         }
     }
 
+    fun recordAudioDiagnostics(diagnostics: RealtimeAudioDiagnostics) {
+        synchronized(lock) {
+            snapshot.inputXRunCount = diagnostics.inputXRunCount.coerceAtLeast(0)
+            snapshot.outputXRunCount = diagnostics.outputXRunCount.coerceAtLeast(0)
+            snapshot.inputBurstFrames = diagnostics.inputBurstFrames.coerceAtLeast(0)
+            snapshot.outputBurstFrames = diagnostics.outputBurstFrames.coerceAtLeast(0)
+            snapshot.inputBufferSizeFrames = diagnostics.inputBufferSizeFrames.coerceAtLeast(0)
+            snapshot.outputBufferSizeFrames = diagnostics.outputBufferSizeFrames.coerceAtLeast(0)
+            snapshot.inputBufferCapacityFrames = diagnostics.inputBufferCapacityFrames.coerceAtLeast(0)
+            snapshot.outputBufferCapacityFrames = diagnostics.outputBufferCapacityFrames.coerceAtLeast(0)
+            snapshot.outputLatencyMillis = diagnostics.outputLatencyMillis.coerceAtLeast(0f)
+            snapshot.outputPendingFrames = diagnostics.outputPendingFrames.coerceAtLeast(0L)
+            snapshot.lastAsyncError = diagnostics.lastAsyncError
+        }
+    }
+
     fun reportAudioError(message: String) {
         setError(message)
     }
@@ -147,7 +164,14 @@ class OpenAiRealtimeSession(
             "Mic dropped: ${snapshot.droppedInputChunks} chunks / ${snapshot.droppedInputFrames} frames. " +
             "Output played: ${snapshot.outputChunks} chunks / ${snapshot.outputFrames} frames. " +
             "Levels: mic ${String.format(Locale.US, "%.3f", snapshot.inputLevel.coerceIn(0f, 1f))}, " +
-            "output ${String.format(Locale.US, "%.3f", snapshot.outputLevel.coerceIn(0f, 1f))}."
+            "output ${String.format(Locale.US, "%.3f", snapshot.outputLevel.coerceIn(0f, 1f))}. " +
+            "Diagnostics: xruns input ${snapshot.inputXRunCount} / output ${snapshot.outputXRunCount}. " +
+            "Output latency ${String.format(Locale.US, "%.1f", snapshot.outputLatencyMillis)} ms / " +
+            "${snapshot.outputPendingFrames} frames pending. " +
+            "Buffer: input ${snapshot.inputBufferSizeFrames}/${snapshot.inputBufferCapacityFrames} " +
+            "burst ${snapshot.inputBurstFrames}, output " +
+            "${snapshot.outputBufferSizeFrames}/${snapshot.outputBufferCapacityFrames} " +
+            "burst ${snapshot.outputBurstFrames}. Async error: ${snapshot.lastAsyncError}."
     }
 
     override fun close() {
@@ -338,7 +362,18 @@ class OpenAiRealtimeSession(
         var outputChunks: Long = 0L,
         var outputFrames: Long = 0L,
         var inputLevel: Float = 0f,
-        var outputLevel: Float = 0f
+        var outputLevel: Float = 0f,
+        var inputXRunCount: Int = 0,
+        var outputXRunCount: Int = 0,
+        var inputBurstFrames: Int = 0,
+        var outputBurstFrames: Int = 0,
+        var inputBufferSizeFrames: Int = 0,
+        var outputBufferSizeFrames: Int = 0,
+        var inputBufferCapacityFrames: Int = 0,
+        var outputBufferCapacityFrames: Int = 0,
+        var outputLatencyMillis: Float = 0f,
+        var outputPendingFrames: Long = 0L,
+        var lastAsyncError: Int = 0
     ) {
         fun reset() {
             status = "Connecting"
@@ -352,6 +387,17 @@ class OpenAiRealtimeSession(
             outputFrames = 0L
             inputLevel = 0f
             outputLevel = 0f
+            inputXRunCount = 0
+            outputXRunCount = 0
+            inputBurstFrames = 0
+            outputBurstFrames = 0
+            inputBufferSizeFrames = 0
+            outputBufferSizeFrames = 0
+            inputBufferCapacityFrames = 0
+            outputBufferCapacityFrames = 0
+            outputLatencyMillis = 0f
+            outputPendingFrames = 0L
+            lastAsyncError = 0
         }
     }
 

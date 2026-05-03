@@ -73,6 +73,50 @@ impl AudioBackend for OpenSLESBackend {
             .read_f32(audio, timeout_nanos, self.channel_count, self.format)
     }
 
+    fn get_timestamp(&self) -> Result<PresentationTimestamp> {
+        Err(Error::Unimplemented)
+    }
+
+    fn get_frames_read(&self) -> Result<i64> {
+        Err(Error::Unimplemented)
+    }
+
+    fn get_frames_written(&self) -> Result<i64> {
+        Err(Error::Unimplemented)
+    }
+
+    fn get_xrun_count(&self) -> Result<i32> {
+        Err(Error::Unimplemented)
+    }
+
+    fn get_frames_per_burst(&self) -> Result<i32> {
+        Err(Error::Unimplemented)
+    }
+
+    fn get_buffer_size_in_frames(&self) -> Result<i32> {
+        Err(Error::Unimplemented)
+    }
+
+    fn set_buffer_size_in_frames(&mut self, _frames: i32) -> Result<i32> {
+        if self.core.state() == StreamState::Closed {
+            Err(Error::Closed)
+        } else {
+            Err(Error::Unimplemented)
+        }
+    }
+
+    fn get_buffer_capacity_in_frames(&self) -> Result<i32> {
+        Err(Error::Unimplemented)
+    }
+
+    fn get_and_clear_last_error(&mut self) -> Result<i32> {
+        if self.core.state() == StreamState::Closed {
+            Err(Error::Closed)
+        } else {
+            Ok(0)
+        }
+    }
+
     fn set_callback_config(&mut self, config: CallbackConfig) -> Result<()> {
         self.core.set_callback_config(config)
     }

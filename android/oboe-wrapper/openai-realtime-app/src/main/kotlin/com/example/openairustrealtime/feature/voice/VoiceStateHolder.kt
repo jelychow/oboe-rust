@@ -393,9 +393,21 @@ class VoiceStateHolder(context: Context) : Closeable {
         val inputDelta = (stats.inputChunks - lastStats.inputChunks).coerceAtLeast(0L)
         val droppedDelta = (stats.droppedInputChunks - lastStats.droppedInputChunks).coerceAtLeast(0L)
         val outputDelta = (stats.outputChunks - lastStats.outputChunks).coerceAtLeast(0L)
+        val xrunDelta = (stats.totalXRunCount - lastStats.totalXRunCount).coerceAtLeast(0)
         if (inputDelta > 0L) addEvent("Mic +$inputDelta chunks")
         if (droppedDelta > 0L) addEvent("Mic dropped +$droppedDelta chunks")
         if (outputDelta > 0L) addEvent("Audio +$outputDelta chunks")
+        if (xrunDelta > 0) addEvent("Audio xrun +$xrunDelta")
+        if (stats.lastAsyncError != 0 && stats.lastAsyncError != lastStats.lastAsyncError) {
+            addEvent("Audio async error ${stats.lastAsyncError}; reopening stream")
+        }
+        if (
+            stats.outputLatencyMillis >= HIGH_OUTPUT_LATENCY_MS &&
+            lastStats.outputLatencyMillis < HIGH_OUTPUT_LATENCY_MS
+        ) {
+            val latency = String.format(Locale.US, "%.1f", stats.outputLatencyMillis)
+            addEvent("High output latency $latency ms")
+        }
         val micLevel = if (inputDelta > 0L) stats.micLevel else 0f
         val outputLevel = if (outputDelta > 0L) stats.outputLevel else 0f
 
@@ -429,7 +441,7 @@ class VoiceStateHolder(context: Context) : Closeable {
                     realtimeRunning = nextRunning,
                     busy = if (stoppedByNative) false else it.busy,
                     status = status,
-                    statusDetail = statusDetail(status),
+                    statusDetail = statusDetail(status, stats),
                     resultTitle = realtimeTitle,
                     resultText = transcript.ifBlank {
                         if (nextRunning) idleText else it.resultText
@@ -560,7 +572,13 @@ class VoiceStateHolder(context: Context) : Closeable {
         }
     }
 
-    private fun statusDetail(status: String): String {
+    private fun statusDetail(status: String, stats: RealtimeStats = RealtimeStats()): String {
+        if (stats.outputLatencyMillis >= HIGH_OUTPUT_LATENCY_MS) {
+            return "Output latency is high; audio buffering is being tuned."
+        }
+        if (stats.totalXRunCount > 0) {
+            return "Audio stream active; ${stats.totalXRunCount} xruns detected."
+        }
         return when (status) {
             "Listening" -> "Listening to microphone input."
             "Thinking" -> "Speech detected, waiting for model response."
@@ -588,5 +606,6 @@ class VoiceStateHolder(context: Context) : Closeable {
             "You are a concise realtime voice assistant. Reply in the user's language."
         private const val DEFAULT_VOICE = "alloy"
         private const val DEFAULT_TARGET_LANGUAGE = "Chinese"
+        private const val HIGH_OUTPUT_LATENCY_MS = 100f
     }
 }

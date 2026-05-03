@@ -34,11 +34,11 @@ networking and the Android Oboe SDK wrapper for audio I/O.
 | Stream builder basics | Full builder with API, direction, sharing, performance, sample rate, channel count, format, callback sizes | Partial: API, direction, sharing, performance, sample rate, channel count, format, callback config |
 | Android stream lifecycle | open, start, stop, pause, flush, release, close, wait-for-state-change | Partial: open, request start, request stop, close, state |
 | Blocking I/O | read and write | Partial: AAudio read/write, OpenSL ES output enqueue |
-| Data callbacks | Native callback thread support | Not supported in alpha |
-| Error callbacks | Disconnect and stream error callbacks | Not supported in alpha |
-| Routing callbacks | Device route updates | Stored in config only; no callback dispatch |
-| Timestamp and latency | timestamp, latency calculation, xrun count | Not supported in alpha |
-| Buffer tuning | capacity, size, burst, available frames | Not supported in alpha |
+| Data callbacks | Native callback thread support | Partial: Rust-native AAudio callback contract and binding; Java realtime callback dispatch remains unsupported |
+| Error callbacks | Disconnect and stream error callbacks | Partial: AAudio error callback forwards into Rust callback state when opened with a Rust callback |
+| Routing callbacks | Device route updates | Partial: Rust callback contract and explicit route-device update notification; OS route-change listener remains pending |
+| Timestamp and latency | timestamp, latency calculation, xrun count | Partial: AAudio timestamp, frame counters, xrun count, and burst queries exposed; latency calculation policy remains pending |
+| Buffer tuning | capacity, size, burst, available frames | Partial: AAudio capacity, size, burst, and set-buffer-size APIs exposed; adaptive tuner remains pending |
 | Advanced builder fields | usage, content type, input preset, session, device id, capture policy, privacy, spatialization, attribution | Not supported in alpha |
 | Full duplex helper | `FullDuplexStream` | Not supported in alpha |
 | Latency tuner | `LatencyTuner` | Not supported in alpha |

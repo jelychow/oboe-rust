@@ -35,5 +35,5 @@ Published crates:
 - oboe-android: experimental AAudio/OpenSL ES backend access.
 - oboe-samples: host-testable Rust sample engines.
 
-This alpha is not a drop-in replacement for C++ Oboe. Callback dispatch, advanced builder fields, timestamp/latency/xrun diagnostics, buffer tuning, full-duplex helpers, and AAR/JNI artifact distribution remain outside this release.
+This alpha is not a drop-in replacement for C++ Oboe. Rust-native AAudio callback and low-latency diagnostic APIs are partial. Advanced builder fields, Java realtime callback dispatch, adaptive latency tuning, full-duplex helpers, and AAR/JNI artifact distribution remain outside this release.
 ```

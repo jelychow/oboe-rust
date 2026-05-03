@@ -1,6 +1,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 pub mod builder;
+pub mod callback;
 pub mod capabilities;
 pub mod error;
 pub mod extensions;
@@ -19,6 +20,6 @@ mod capability_api_tests {
     #[test]
     fn public_capability_api_reports_callback_gap() {
         let capability = capability("stream_callbacks").unwrap();
-        assert_eq!(capability.support, SupportLevel::Unsupported);
+        assert_eq!(capability.support, SupportLevel::Partial);
     }
 }

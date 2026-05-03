@@ -25,13 +25,13 @@ pub const CAPABILITIES: &[Capability] = &[
     },
     Capability {
         name: "stream_callbacks",
-        support: SupportLevel::Unsupported,
-        note: "Callback flags can be stored, but native audio callback dispatch is not available.",
+        support: SupportLevel::Partial,
+        note: "Rust-native callback contracts and AAudio callback binding are available; Java realtime callback dispatch remains unsupported.",
     },
     Capability {
         name: "latency_and_xrun_diagnostics",
-        support: SupportLevel::Unsupported,
-        note: "Timestamp, xrun count, latency, and buffer tuning APIs are not available.",
+        support: SupportLevel::Partial,
+        note: "AAudio timestamp, xrun, frame counters, burst size, and buffer size tuning APIs are exposed.",
     },
     Capability {
         name: "advanced_builder_fields",
@@ -58,10 +58,10 @@ mod tests {
     }
 
     #[test]
-    fn tracks_unsupported_callback_dispatch() {
+    fn tracks_partial_callback_dispatch() {
         let capability = capability("stream_callbacks").unwrap();
-        assert_eq!(capability.support, SupportLevel::Unsupported);
-        assert!(capability.note.contains("not available"));
+        assert_eq!(capability.support, SupportLevel::Partial);
+        assert!(capability.note.contains("AAudio callback"));
     }
 
     #[test]

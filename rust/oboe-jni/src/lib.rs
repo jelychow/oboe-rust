@@ -133,6 +133,69 @@ impl NativeStream {
         .unwrap_or(-1)
     }
 
+    fn get_timestamp(&self) -> oboe_core::error::Result<PresentationTimestamp> {
+        match self {
+            Self::AAudio(stream) => stream.get_timestamp(),
+            Self::OpenSLES(stream) => stream.get_timestamp(),
+        }
+    }
+
+    fn get_frames_read(&self) -> oboe_core::error::Result<i64> {
+        match self {
+            Self::AAudio(stream) => stream.get_frames_read(),
+            Self::OpenSLES(stream) => stream.get_frames_read(),
+        }
+    }
+
+    fn get_frames_written(&self) -> oboe_core::error::Result<i64> {
+        match self {
+            Self::AAudio(stream) => stream.get_frames_written(),
+            Self::OpenSLES(stream) => stream.get_frames_written(),
+        }
+    }
+
+    fn get_xrun_count(&self) -> oboe_core::error::Result<i32> {
+        match self {
+            Self::AAudio(stream) => stream.get_xrun_count(),
+            Self::OpenSLES(stream) => stream.get_xrun_count(),
+        }
+    }
+
+    fn get_frames_per_burst(&self) -> oboe_core::error::Result<i32> {
+        match self {
+            Self::AAudio(stream) => stream.get_frames_per_burst(),
+            Self::OpenSLES(stream) => stream.get_frames_per_burst(),
+        }
+    }
+
+    fn get_buffer_size_in_frames(&self) -> oboe_core::error::Result<i32> {
+        match self {
+            Self::AAudio(stream) => stream.get_buffer_size_in_frames(),
+            Self::OpenSLES(stream) => stream.get_buffer_size_in_frames(),
+        }
+    }
+
+    fn set_buffer_size_in_frames(&mut self, frames: i32) -> oboe_core::error::Result<i32> {
+        match self {
+            Self::AAudio(stream) => stream.set_buffer_size_in_frames(frames),
+            Self::OpenSLES(stream) => stream.set_buffer_size_in_frames(frames),
+        }
+    }
+
+    fn get_buffer_capacity_in_frames(&self) -> oboe_core::error::Result<i32> {
+        match self {
+            Self::AAudio(stream) => stream.get_buffer_capacity_in_frames(),
+            Self::OpenSLES(stream) => stream.get_buffer_capacity_in_frames(),
+        }
+    }
+
+    fn get_and_clear_last_error(&mut self) -> oboe_core::error::Result<i32> {
+        match self {
+            Self::AAudio(stream) => stream.get_and_clear_last_error(),
+            Self::OpenSLES(stream) => stream.get_and_clear_last_error(),
+        }
+    }
+
     #[cfg(test)]
     fn backend_api(&self) -> AudioApi {
         match self {
@@ -320,6 +383,34 @@ fn with_stream(handle: jlong, f: impl FnOnce(&NativeStream) -> jint) -> jint {
         .unwrap_or(-1)
 }
 
+fn with_stream_i32(
+    handle: jlong,
+    f: impl FnOnce(&NativeStream) -> oboe_core::error::Result<i32>,
+) -> jint {
+    with_stream(handle, |stream| f(stream).unwrap_or(-1))
+}
+
+fn with_stream_mut_i32(
+    handle: jlong,
+    f: impl FnOnce(&mut NativeStream) -> oboe_core::error::Result<i32>,
+) -> jint {
+    with_stream_mut(handle, |stream| f(stream).unwrap_or(-1))
+}
+
+fn with_stream_i64(
+    handle: jlong,
+    f: impl FnOnce(&NativeStream) -> oboe_core::error::Result<i64>,
+) -> jlong {
+    stream_for_handle(handle)
+        .map(|stream| {
+            let stream = stream
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            f(&stream).unwrap_or(-1)
+        })
+        .unwrap_or(-1)
+}
+
 #[no_mangle]
 pub extern "system" fn Java_com_google_oboe_AudioStream_nativeVersionCode(
     _env: JNIEnv,
@@ -399,6 +490,116 @@ pub extern "system" fn Java_com_google_oboe_AudioStream_nativeGetState(
     handle: jlong,
 ) -> jint {
     with_stream(handle, |stream| stream_state_code(stream.state()))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeGetTimestamp(
+    env: jni::JNIEnv<'_>,
+    _class: jni::objects::JClass<'_>,
+    handle: jlong,
+    out: jni::objects::JLongArray<'_>,
+) -> jint {
+    let array_len = match env.get_array_length(&out) {
+        Ok(length) => length,
+        Err(_) => return -1,
+    };
+    if array_len < 2 {
+        return -1;
+    }
+
+    let timestamp = match stream_for_handle(handle) {
+        Some(stream) => {
+            let stream = stream
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            match stream.get_timestamp() {
+                Ok(timestamp) => timestamp,
+                Err(_) => return -1,
+            }
+        }
+        None => return -1,
+    };
+
+    env.set_long_array_region(
+        &out,
+        0,
+        &[timestamp.frame_position, timestamp.timestamp_nanos],
+    )
+    .map(|_| 0)
+    .unwrap_or(-1)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeGetFramesRead(
+    _env: JNIEnv,
+    _self: jobject,
+    handle: jlong,
+) -> jlong {
+    with_stream_i64(handle, NativeStream::get_frames_read)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeGetFramesWritten(
+    _env: JNIEnv,
+    _self: jobject,
+    handle: jlong,
+) -> jlong {
+    with_stream_i64(handle, NativeStream::get_frames_written)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeGetXRunCount(
+    _env: JNIEnv,
+    _self: jobject,
+    handle: jlong,
+) -> jint {
+    with_stream_i32(handle, NativeStream::get_xrun_count)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeGetFramesPerBurst(
+    _env: JNIEnv,
+    _self: jobject,
+    handle: jlong,
+) -> jint {
+    with_stream_i32(handle, NativeStream::get_frames_per_burst)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeGetBufferSizeInFrames(
+    _env: JNIEnv,
+    _self: jobject,
+    handle: jlong,
+) -> jint {
+    with_stream_i32(handle, NativeStream::get_buffer_size_in_frames)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeSetBufferSizeInFrames(
+    _env: JNIEnv,
+    _self: jobject,
+    handle: jlong,
+    frames: jint,
+) -> jint {
+    with_stream_mut_i32(handle, |stream| stream.set_buffer_size_in_frames(frames))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeGetBufferCapacityInFrames(
+    _env: JNIEnv,
+    _self: jobject,
+    handle: jlong,
+) -> jint {
+    with_stream_i32(handle, NativeStream::get_buffer_capacity_in_frames)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_google_oboe_AudioStream_nativeGetAndClearLastError(
+    _env: JNIEnv,
+    _self: jobject,
+    handle: jlong,
+) -> jint {
+    with_stream_mut_i32(handle, NativeStream::get_and_clear_last_error)
 }
 
 #[no_mangle]
@@ -961,5 +1162,54 @@ mod tests {
         );
 
         assert_eq!(handle, 0);
+    }
+
+    #[test]
+    fn native_low_latency_diagnostics_forward_to_backend() {
+        let handle = native_open_with_direction(1, 1);
+        assert_ne!(handle, 0);
+
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeGetFramesPerBurst(
+                null_mut(),
+                null_mut(),
+                handle
+            ),
+            192
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeSetBufferSizeInFrames(
+                null_mut(),
+                null_mut(),
+                handle,
+                192,
+            ),
+            192
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeGetBufferSizeInFrames(
+                null_mut(),
+                null_mut(),
+                handle,
+            ),
+            192
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeGetXRunCount(null_mut(), null_mut(), handle),
+            0
+        );
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeGetAndClearLastError(
+                null_mut(),
+                null_mut(),
+                handle
+            ),
+            0
+        );
+
+        assert_eq!(
+            Java_com_google_oboe_AudioStream_nativeClose(null_mut(), null_mut(), handle),
+            0
+        );
     }
 }

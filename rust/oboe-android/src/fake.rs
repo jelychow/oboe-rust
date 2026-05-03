@@ -9,12 +9,44 @@ use oboe_core::stream::{StreamCore, StreamState};
 #[derive(Debug)]
 pub struct FakeBackend {
     core: StreamCore,
+    sample_rate: i32,
+    channel_count: i32,
+    frames_read: i64,
+    frames_written: i64,
+    frames_per_burst: i32,
+    buffer_capacity_in_frames: i32,
+    buffer_size_in_frames: i32,
+    xrun_count: i32,
+    last_error: i32,
 }
 
 impl AudioBackend for FakeBackend {
     fn open(builder: &StreamBuilder) -> Result<Self> {
+        let frames_per_burst = if builder.frames_per_callback > 0 {
+            builder.frames_per_callback
+        } else {
+            192
+        };
+        let buffer_capacity_in_frames = if builder.buffer_capacity_in_frames > 0 {
+            builder.buffer_capacity_in_frames
+        } else {
+            frames_per_burst * 4
+        };
         Ok(Self {
             core: StreamCore::new_open_with_builder(builder)?,
+            sample_rate: if builder.sample_rate > 0 {
+                builder.sample_rate
+            } else {
+                48_000
+            },
+            channel_count: builder.channel_count,
+            frames_read: 0,
+            frames_written: 0,
+            frames_per_burst,
+            buffer_capacity_in_frames,
+            buffer_size_in_frames: buffer_capacity_in_frames,
+            xrun_count: 0,
+            last_error: 0,
         })
     }
 
@@ -35,6 +67,7 @@ impl AudioBackend for FakeBackend {
     }
 
     fn write_f32(&mut self, audio: &[f32], _timeout_nanos: i64) -> Result<i32> {
+        self.frames_written += complete_frames_from_samples(audio.len(), self.channel_count)?;
         Ok(audio.len() as i32)
     }
 
@@ -42,7 +75,54 @@ impl AudioBackend for FakeBackend {
         for sample in audio.iter_mut() {
             *sample = 0.0;
         }
+        self.frames_read += complete_frames_from_samples(audio.len(), self.channel_count)?;
         Ok(audio.len() as i32)
+    }
+
+    fn get_timestamp(&self) -> Result<PresentationTimestamp> {
+        let frame_position = self.frames_written.max(self.frames_read);
+        Ok(PresentationTimestamp {
+            frame_position,
+            timestamp_nanos: frame_position * 1_000_000_000_i64 / i64::from(self.sample_rate),
+        })
+    }
+
+    fn get_frames_read(&self) -> Result<i64> {
+        Ok(self.frames_read)
+    }
+
+    fn get_frames_written(&self) -> Result<i64> {
+        Ok(self.frames_written)
+    }
+
+    fn get_xrun_count(&self) -> Result<i32> {
+        Ok(self.xrun_count)
+    }
+
+    fn get_frames_per_burst(&self) -> Result<i32> {
+        Ok(self.frames_per_burst)
+    }
+
+    fn get_buffer_size_in_frames(&self) -> Result<i32> {
+        Ok(self.buffer_size_in_frames)
+    }
+
+    fn set_buffer_size_in_frames(&mut self, frames: i32) -> Result<i32> {
+        if frames <= 0 {
+            return Err(oboe_core::error::Error::InvalidArgument);
+        }
+        self.buffer_size_in_frames = frames.min(self.buffer_capacity_in_frames);
+        Ok(self.buffer_size_in_frames)
+    }
+
+    fn get_buffer_capacity_in_frames(&self) -> Result<i32> {
+        Ok(self.buffer_capacity_in_frames)
+    }
+
+    fn get_and_clear_last_error(&mut self) -> Result<i32> {
+        let error = self.last_error;
+        self.last_error = 0;
+        Ok(error)
     }
 
     fn set_callback_config(&mut self, config: CallbackConfig) -> Result<()> {
@@ -68,6 +148,16 @@ impl AudioBackend for FakeBackend {
     fn set_route_device_id(&mut self, device_id: i32) -> Result<()> {
         self.core.set_route_device_id(device_id)
     }
+}
+
+fn complete_frames_from_samples(sample_count: usize, channel_count: i32) -> Result<i64> {
+    let channel_count =
+        usize::try_from(channel_count).map_err(|_| oboe_core::error::Error::InvalidArgument)?;
+    if channel_count == 0 {
+        return Err(oboe_core::error::Error::InvalidArgument);
+    }
+    i64::try_from(sample_count / channel_count)
+        .map_err(|_| oboe_core::error::Error::InvalidArgument)
 }
 
 #[cfg(test)]

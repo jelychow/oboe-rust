@@ -35,6 +35,24 @@ public final class AudioStream implements AutoCloseable {
 
     private static native int nativeGetState(long handle);
 
+    private static native int nativeGetTimestamp(long handle, long[] out);
+
+    private static native long nativeGetFramesRead(long handle);
+
+    private static native long nativeGetFramesWritten(long handle);
+
+    private static native int nativeGetXRunCount(long handle);
+
+    private static native int nativeGetFramesPerBurst(long handle);
+
+    private static native int nativeGetBufferSizeInFrames(long handle);
+
+    private static native int nativeSetBufferSizeInFrames(long handle, int frames);
+
+    private static native int nativeGetBufferCapacityInFrames(long handle);
+
+    private static native int nativeGetAndClearLastError(long handle);
+
     private static native int nativeClose(long handle);
 
     private static native int nativeSetCallbackConfig(
@@ -77,6 +95,59 @@ public final class AudioStream implements AutoCloseable {
     public int getState() {
         ensureOpen();
         return nativeGetState(nativeHandle);
+    }
+
+    public AudioTimestamp getTimestamp() {
+        ensureOpen();
+        long[] timestamp = new long[2];
+        int result = nativeGetTimestamp(nativeHandle, timestamp);
+        if (result != 0) {
+            throw new IllegalStateException("native stream timestamp query failed");
+        }
+        return new AudioTimestamp(timestamp[0], timestamp[1]);
+    }
+
+    public long getFramesRead() {
+        ensureOpen();
+        return nativeGetFramesRead(nativeHandle);
+    }
+
+    public long getFramesWritten() {
+        ensureOpen();
+        return nativeGetFramesWritten(nativeHandle);
+    }
+
+    public int getXRunCount() {
+        ensureOpen();
+        return nativeGetXRunCount(nativeHandle);
+    }
+
+    public int getFramesPerBurst() {
+        ensureOpen();
+        return nativeGetFramesPerBurst(nativeHandle);
+    }
+
+    public int getBufferSizeInFrames() {
+        ensureOpen();
+        return nativeGetBufferSizeInFrames(nativeHandle);
+    }
+
+    public int setBufferSizeInFrames(int frames) {
+        ensureOpen();
+        if (frames <= 0) {
+            throw new IllegalArgumentException("frames must be positive");
+        }
+        return nativeSetBufferSizeInFrames(nativeHandle, frames);
+    }
+
+    public int getBufferCapacityInFrames() {
+        ensureOpen();
+        return nativeGetBufferCapacityInFrames(nativeHandle);
+    }
+
+    public int getAndClearLastError() {
+        ensureOpen();
+        return nativeGetAndClearLastError(nativeHandle);
     }
 
     public int setDataCallback(AudioCallback callback, int framesPerDataCallback) {

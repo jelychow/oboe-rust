@@ -73,4 +73,34 @@ public final class AudioStreamSmokeTest extends InstrumentationTestCase {
             stream.close();
         }
     }
+
+    public void testAAudioLowLatencyDiagnosticsApis() {
+        AudioStream stream = new AudioStreamBuilder()
+                .setAudioApi(AudioApi.AAUDIO)
+                .setDirection(AudioDirection.OUTPUT)
+                .setSampleRate(48000)
+                .setChannelCount(1)
+                .setFormat(AudioFormat.FLOAT)
+                .setSharingMode(SharingMode.EXCLUSIVE)
+                .setPerformanceMode(PerformanceMode.LOW_LATENCY)
+                .setFramesPerCallback(96)
+                .setBufferCapacityInFrames(384)
+                .openStream();
+        try {
+            assertTrue("burst size should be queryable", stream.getFramesPerBurst() >= 0);
+            assertTrue(
+                    "buffer tuning should return the actual buffer size",
+                    stream.setBufferSizeInFrames(192) >= 0);
+            assertTrue("buffer size should be queryable", stream.getBufferSizeInFrames() >= 0);
+            assertTrue(
+                    "buffer capacity should be queryable",
+                    stream.getBufferCapacityInFrames() >= 0);
+            assertTrue("xrun count should be queryable", stream.getXRunCount() >= 0);
+            assertEquals(0, stream.getAndClearLastError());
+            AudioTimestamp timestamp = stream.getTimestamp();
+            assertNotNull(timestamp);
+        } finally {
+            stream.close();
+        }
+    }
 }

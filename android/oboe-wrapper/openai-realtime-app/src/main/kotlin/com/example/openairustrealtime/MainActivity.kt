@@ -37,6 +37,9 @@ class MainActivity : Activity() {
     private lateinit var droppedMicView: TextView
     private lateinit var outputChunksView: TextView
     private lateinit var outputFramesView: TextView
+    private lateinit var xrunView: TextView
+    private lateinit var latencyView: TextView
+    private lateinit var bufferView: TextView
     private lateinit var ttsModeButton: Button
     private lateinit var asrModeButton: Button
     private lateinit var realtimeModeButton: Button
@@ -180,13 +183,19 @@ class MainActivity : Activity() {
 
     private fun metricsPanel(): View {
         return LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            micChunksView = addMetric(this, "Mic chunks")
-            micFramesView = addMetric(this, "Mic frames")
-            droppedMicView = addMetric(this, "Dropped mic")
-            outputChunksView = addMetric(this, "Audio chunks")
-            outputFramesView = addMetric(this, "Audio frames")
+            orientation = LinearLayout.VERTICAL
+            val firstRow = metricRow()
+            val secondRow = metricRow()
+            micChunksView = addMetric(firstRow, "Mic chunks")
+            micFramesView = addMetric(firstRow, "Mic frames")
+            droppedMicView = addMetric(firstRow, "Dropped mic")
+            outputChunksView = addMetric(firstRow, "Audio chunks")
+            outputFramesView = addMetric(secondRow, "Audio frames")
+            xrunView = addMetric(secondRow, "Xruns")
+            latencyView = addMetric(secondRow, "Latency")
+            bufferView = addMetric(secondRow, "Out buffer")
+            addView(firstRow, fullWidth())
+            addView(secondRow, fullWidthWithTopMargin(dp(6)))
         }
     }
 
@@ -479,6 +488,12 @@ class MainActivity : Activity() {
         droppedMicView.text = state.stats.droppedInputFrames.toString()
         outputChunksView.text = state.stats.outputChunks.toString()
         outputFramesView.text = state.stats.outputFrames.toString()
+        xrunView.text = "${state.stats.inputXRunCount}/${state.stats.outputXRunCount}"
+        latencyView.text = String.format(Locale.US, "%.1f ms", state.stats.outputLatencyMillis)
+        bufferView.text = bufferMetric(
+            state.stats.outputBufferSizeFrames,
+            state.stats.outputBufferCapacityFrames
+        )
         val audioActive = state.realtimeRunning || state.recording || state.status == "Playing"
         signalView.setLive(audioActive && state.status != "Error")
         signalView.setLevels(state.micLevel, state.outputLevel)
@@ -629,6 +644,21 @@ class MainActivity : Activity() {
         }, fullWidth())
         parent.addView(box, LinearLayout.LayoutParams(0, wrap(), 1f).withMargins(dp(3), 0, dp(3), 0))
         return value
+    }
+
+    private fun metricRow(): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+    }
+
+    private fun bufferMetric(sizeFrames: Int, capacityFrames: Int): String {
+        return if (sizeFrames > 0 && capacityFrames > 0) {
+            "$sizeFrames/$capacityFrames"
+        } else {
+            "-"
+        }
     }
 
     private fun primaryButton(text: String): Button {

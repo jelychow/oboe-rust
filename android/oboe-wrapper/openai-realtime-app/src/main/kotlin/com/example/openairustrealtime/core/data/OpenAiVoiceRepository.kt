@@ -19,6 +19,7 @@ class OpenAiVoiceRepository(context: Context) {
         onInputAudio = { audio, sampleCount -> realtime.appendInputAudio(audio, sampleCount) },
         pollOutputAudio = realtime::pollOutputAudio,
         onOutputAudio = realtime::recordOutputAudio,
+        onDiagnostics = realtime::recordAudioDiagnostics,
         onError = realtime::reportAudioError
     )
     @Volatile private var statsSource = StatsSource.GENERAL
