@@ -1,0 +1,32 @@
+# To get started with Dependabot version updates, specify which package
+# ecosystems to update and where the package manifests are located.
+version: 2
+
+# Workaround for https://github.com/dependabot/dependabot-core/issues/6888#issuecomment-1539501116
+registries:
+  maven-google:
+    type: maven-repository
+    url: "https://dl.google.com/dl/android/maven2/"
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "main"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "dependencies/github-actions"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "gradle"
+    registries:
+      - maven-google
+    directory: "/android/oboe-wrapper"
+    target-branch: "main"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "dependencies/gradle"
+    schedule:
+      interval: "daily"

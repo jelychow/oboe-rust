@@ -1,0 +1,28 @@
+plugins {
+    id 'com.android.application'
+}
+
+def remoteAarVersion = findProperty('oboeRust.remoteVersion') ?: '0.1.0-alpha.6'
+
+android {
+    namespace 'com.google.oboe.remoteaar'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.google.oboe.remoteaar'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName remoteAarVersion
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+}
+
+dependencies {
+    implementation "io.github.jelychow.oboe:oboe-rust-android:${remoteAarVersion}"
+}

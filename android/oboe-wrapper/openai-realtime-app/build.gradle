@@ -1,0 +1,105 @@
+plugins {
+    id 'com.android.application'
+}
+
+def skipRealtimeKotlin = providers.gradleProperty('oboeRust.skipRealtimeKotlin')
+    .map { it.toBoolean() }
+    .orElse(false)
+    .get()
+
+if (!skipRealtimeKotlin) {
+    apply plugin: 'org.jetbrains.kotlin.android'
+}
+
+def realtimeLocalProperties = new Properties()
+[
+    rootProject.file('local.properties'),
+    rootProject.file('android/oboe-wrapper/local.properties'),
+    rootProject.file('../../local.properties'),
+    project.file('../local.properties')
+].unique().findAll { it.isFile() }.each { localPropertiesFile ->
+    localPropertiesFile.withInputStream { realtimeLocalProperties.load(it) }
+}
+
+def realtimeSetting = { List propertyNames, String fallback ->
+    for (def propertyName : propertyNames) {
+        def value = findProperty(propertyName)
+        if (value != null && value.toString().trim()) {
+            return value.toString().trim()
+        }
+    }
+    for (def propertyName : propertyNames) {
+        def value = realtimeLocalProperties.getProperty(propertyName)
+        if (value != null && value.trim()) {
+            return value.trim()
+        }
+    }
+    return fallback
+}
+
+def oboeRealtimeDependency = realtimeSetting(
+    ['oboeRust.realtimeDependency', 'oboeRust.realtimeSource', 'oboeRust.dependencySource'],
+    'source'
+).toLowerCase(Locale.ROOT)
+def oboeRemoteAarVersion = realtimeSetting(
+    ['oboeRust.remoteVersion', 'oboeRust.version'],
+    '0.1.0-alpha.6'
+)
+def oboeRemoteAarCoordinate = "io.github.jelychow.oboe:oboe-rust-android:${oboeRemoteAarVersion}"
+
+android {
+    namespace 'com.example.openairustrealtime'
+    compileSdk 34
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    defaultConfig {
+        applicationId 'com.example.openairustrealtime'
+        minSdk 26
+        targetSdk 34
+        versionCode 3
+        versionName 'aec-fix-r3'
+        applicationIdSuffix '.aecfixr3'
+        multiDexKeepFile file('multidex-keep.txt')
+        multiDexKeepProguard file('multidex-keep.pro')
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    if (!skipRealtimeKotlin) {
+        kotlinOptions {
+            jvmTarget = '1.8'
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+}
+
+dependencies {
+    if (['source', 'sdk', 'local'].contains(oboeRealtimeDependency)) {
+        implementation project(':oboe-wrapper')
+    } else if (['remote', 'aar'].contains(oboeRealtimeDependency)) {
+        implementation oboeRemoteAarCoordinate
+    } else {
+        throw new GradleException(
+            "Unsupported oboeRust.realtimeDependency '${oboeRealtimeDependency}'. " +
+            "Use source, sdk, local, remote, or aar."
+        )
+    }
+
+    implementation 'io.ktor:ktor-client-core:2.3.12'
+    implementation 'io.ktor:ktor-client-okhttp:2.3.12'
+    implementation 'io.ktor:ktor-client-websockets:2.3.12'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+}

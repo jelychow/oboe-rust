@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = [
+    "oboe-samples-jni",
+]
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+version = "0.1.0-alpha.6"
+repository = "https://github.com/jelychow/oboe-rust"
+homepage = "https://github.com/jelychow/oboe-rust"
+rust-version = "1.82"

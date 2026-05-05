@@ -1,0 +1,195 @@
+name: Build CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  ANDROID_NDK_VERSION: 29.0.14206865
+
+jobs:
+  rust-and-wrapper:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Set up JDK
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Check Rust formatting
+        run: |
+          cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+          cargo fmt --manifest-path examples/rust/Cargo.toml --all -- --check
+
+      - name: Check public project surface
+        run: bash tools/check-public-surface.sh
+
+      - name: Lint Rust
+        run: |
+          cargo clippy --manifest-path rust/Cargo.toml --workspace --tests -- -D warnings
+          cargo clippy --manifest-path examples/rust/Cargo.toml --workspace --tests -- -D warnings
+
+      - name: Test Rust
+        run: |
+          cargo test --manifest-path rust/Cargo.toml
+          cargo test --manifest-path examples/rust/Cargo.toml
+
+      - name: Check Android Rust targets
+        run: |
+          for target in aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android; do
+            cargo check --manifest-path rust/Cargo.toml -p oboe-jni --target "$target"
+          done
+
+      - name: Install Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager_bin="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$sdkmanager_bin" ]]; then
+            sdkmanager_bin="$(command -v sdkmanager)"
+          fi
+          yes | "$sdkmanager_bin" --licenses >/dev/null || true
+          "$sdkmanager_bin" "ndk;${ANDROID_NDK_VERSION}"
+          echo "ANDROID_NDK=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Build Android JNI libraries
+        run: bash tools/build-rust-android.sh
+        env:
+          RUST_ANDROID_LIBRARIES: oboe-jni
+
+      - name: Assemble and publish Android wrapper locally
+        working-directory: android/oboe-wrapper
+        run: |
+          ./gradlew \
+            :oboe-wrapper:assembleRelease \
+            :oboe-smoke-app:assembleDebug \
+            :openai-realtime-app:assembleDebug \
+            :oboe-wrapper:publishReleasePublicationToMavenLocal \
+            --no-daemon \
+            --console=plain
+
+      - name: Verify realtime app launcher class
+        run: |
+          python3 - <<'PY'
+          import struct
+          import zipfile
+
+          apk = "android/oboe-wrapper/openai-realtime-app/build/outputs/apk/debug/openai-realtime-app-debug.apk"
+          launcher = b"Lcom/example/openairustrealtime/MainActivity;"
+
+          def read_uleb128(data, offset):
+              result = 0
+              shift = 0
+              while True:
+                  byte = data[offset]
+                  offset += 1
+                  result |= (byte & 0x7f) << shift
+                  if byte < 0x80:
+                      return result, offset
+                  shift += 7
+
+          def read_string_bytes(data, offset):
+              _, offset = read_uleb128(data, offset)
+              end = data.index(b"\x00", offset)
+              return data[offset:end]
+
+          def dex_class_descriptors(data):
+              if data[:3] != b"dex":
+                  raise ValueError("Not a DEX file")
+              string_ids_size, string_ids_off = struct.unpack_from("<II", data, 0x38)
+              type_ids_size, type_ids_off = struct.unpack_from("<II", data, 0x40)
+              class_defs_size, class_defs_off = struct.unpack_from("<II", data, 0x60)
+
+              strings = []
+              for index in range(string_ids_size):
+                  (string_data_off,) = struct.unpack_from("<I", data, string_ids_off + index * 4)
+                  strings.append(read_string_bytes(data, string_data_off))
+
+              type_descriptors = []
+              for index in range(type_ids_size):
+                  (descriptor_idx,) = struct.unpack_from("<I", data, type_ids_off + index * 4)
+                  type_descriptors.append(strings[descriptor_idx])
+
+              for index in range(class_defs_size):
+                  (class_idx,) = struct.unpack_from("<I", data, class_defs_off + index * 32)
+                  yield type_descriptors[class_idx]
+
+          with zipfile.ZipFile(apk) as package:
+              dex_files = [name for name in package.namelist() if name.endswith(".dex")]
+              hits = [
+                  name for name in dex_files
+                  if launcher in set(dex_class_descriptors(package.read(name)))
+              ]
+          if not hits:
+              raise SystemExit(
+                  "Missing com.example.openairustrealtime.MainActivity as a realtime APK dex class definition."
+              )
+          print("Verified realtime launcher class definition in " + ", ".join(hits))
+          PY
+
+      - name: Compile Java wrapper
+        run: |
+          mkdir -p build/javac-oboe-wrapper
+          javac -Xlint:all -d build/javac-oboe-wrapper android/oboe-wrapper/oboe-wrapper/src/main/java/com/google/oboe/*.java
+
+  android-instrumentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Enable KVM group permissions
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Set up JDK
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager_bin="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$sdkmanager_bin" ]]; then
+            sdkmanager_bin="$(command -v sdkmanager)"
+          fi
+          yes | "$sdkmanager_bin" --licenses >/dev/null || true
+          "$sdkmanager_bin" "ndk;${ANDROID_NDK_VERSION}"
+          echo "ANDROID_NDK=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Build Android JNI libraries
+        run: bash tools/build-rust-android.sh
+        env:
+          RUST_ANDROID_LIBRARIES: oboe-jni
+
+      - name: Run wrapper instrumentation tests
+        uses: reactivecircus/android-emulator-runner@70f4dee990796918b78d040e3278474bdbd348a7 # v2
+        with:
+          api-level: 29
+          emulator-boot-timeout: 900
+          script: cd android/oboe-wrapper && ./gradlew :oboe-wrapper:connectedDebugAndroidTest --no-daemon --console=plain

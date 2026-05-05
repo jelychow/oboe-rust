@@ -1,0 +1,85 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    plugins {
+        id 'com.android.application' version '9.2.0'
+    }
+}
+
+def githubPackagesLocalProperties = new Properties()
+[
+    file('local.properties'),
+    file('../local.properties'),
+    file('../../../local.properties')
+].findAll { it.isFile() }.each { localPropertiesFile ->
+    localPropertiesFile.withInputStream { githubPackagesLocalProperties.load(it) }
+}
+
+def githubPackagesCredential = { List gradlePropertyNames, List localPropertyNames, List environmentNames ->
+    for (def propertyName : gradlePropertyNames) {
+        def value = providers.gradleProperty(propertyName).orNull
+        if (value != null && value.trim()) {
+            return value.trim()
+        }
+    }
+    for (def propertyName : localPropertyNames) {
+        def value = githubPackagesLocalProperties.getProperty(propertyName)
+        if (value != null && value.trim()) {
+            return value.trim()
+        }
+    }
+    for (def environmentName : environmentNames) {
+        def value = providers.environmentVariable(environmentName).orNull
+        if (value != null && value.trim()) {
+            return value.trim()
+        }
+    }
+    return ''
+}
+
+def githubPackagesToken = githubPackagesCredential(
+    ['gpr.key', 'gpr.token', 'github.key', 'github.token'],
+    ['gpr.key', 'gpr.token', 'github.key', 'github.token', 'githubPackages.key', 'githubPackages.token'],
+    ['GITHUB_TOKEN']
+)
+
+def githubPackagesUsername = githubPackagesCredential(
+    ['gpr.user', 'github.user', 'github.username'],
+    ['gpr.user', 'github.user', 'github.username', 'githubPackages.user', 'githubPackages.username'],
+    ['GITHUB_ACTOR']
+)
+
+if (!githubPackagesUsername && githubPackagesToken) {
+    githubPackagesUsername = 'jelychow'
+}
+
+if (!githubPackagesUsername || !githubPackagesToken) {
+    throw new GradleException(
+        'The oboe-remote-aar-demo consumes GitHub Packages. ' +
+        'Add gpr.key=<token-with-read:packages> to local.properties, optionally with gpr.user=<github-user>.'
+    )
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        maven {
+            name = 'GitHubPackages'
+            url = uri('https://maven.pkg.github.com/jelychow/oboe-rust')
+            credentials {
+                username = githubPackagesUsername
+                password = githubPackagesToken
+            }
+            content {
+                includeGroup('io.github.jelychow.oboe')
+            }
+        }
+    }
+}
+
+rootProject.name = 'oboe-remote-aar-demo'

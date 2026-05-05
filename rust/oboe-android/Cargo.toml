@@ -1,0 +1,19 @@
+[package]
+name = "oboe-android"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/oboe-android"
+rust-version.workspace = true
+description = "Experimental Rust-native Android AAudio and OpenSL ES backends for Oboe-style audio streams."
+readme = "README.md"
+keywords = ["android", "aaudio", "opensles", "audio"]
+categories = ["multimedia::audio", "api-bindings", "os::android-apis"]
+
+[dependencies]
+oboe-core = { version = "0.1.0-alpha.6", path = "../oboe-core" }
+
+[lib]
+crate-type = ["rlib"]

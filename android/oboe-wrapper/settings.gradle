@@ -1,0 +1,79 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+def githubPackagesLocalProperties = new Properties()
+[
+    file('local.properties'),
+    file('../../local.properties')
+].findAll { it.isFile() }.each { localPropertiesFile ->
+    localPropertiesFile.withInputStream { githubPackagesLocalProperties.load(it) }
+}
+
+def githubPackagesCredential = { List gradlePropertyNames, List localPropertyNames, List environmentNames ->
+    for (def propertyName : gradlePropertyNames) {
+        def value = providers.gradleProperty(propertyName).orNull
+        if (value != null && value.trim()) {
+            return value.trim()
+        }
+    }
+    for (def propertyName : localPropertyNames) {
+        def value = githubPackagesLocalProperties.getProperty(propertyName)
+        if (value != null && value.trim()) {
+            return value.trim()
+        }
+    }
+    for (def environmentName : environmentNames) {
+        def value = providers.environmentVariable(environmentName).orNull
+        if (value != null && value.trim()) {
+            return value.trim()
+        }
+    }
+    return ''
+}
+
+def githubPackagesToken = githubPackagesCredential(
+    ['gpr.key', 'gpr.token', 'github.key', 'github.token'],
+    ['gpr.key', 'gpr.token', 'github.key', 'github.token', 'githubPackages.key', 'githubPackages.token'],
+    ['GITHUB_TOKEN']
+)
+
+def githubPackagesUsername = githubPackagesCredential(
+    ['gpr.user', 'github.user', 'github.username'],
+    ['gpr.user', 'github.user', 'github.username', 'githubPackages.user', 'githubPackages.username'],
+    ['GITHUB_ACTOR']
+)
+
+if (!githubPackagesUsername && githubPackagesToken) {
+    githubPackagesUsername = 'jelychow'
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        maven {
+            name = 'GitHubPackages'
+            url = uri('https://maven.pkg.github.com/jelychow/oboe-rust')
+            credentials {
+                username = githubPackagesUsername
+                password = githubPackagesToken
+            }
+            content {
+                includeGroup('io.github.jelychow.oboe')
+            }
+        }
+    }
+}
+
+rootProject.name = 'oboe-rust-wrapper'
+include ':oboe-wrapper'
+include ':oboe-smoke-app'
+include ':oboe-samples-app'
+include ':oboe-remote-aar-demo'
+include ':openai-realtime-app'

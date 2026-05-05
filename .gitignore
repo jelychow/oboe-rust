@@ -1,0 +1,13 @@
+*/.DS_Store
+.DS_Store
+.externalNativeBuild/
+.cxx/
+.idea
+build
+.logpile
+target/
+
+.omx/
+.local/
+local.properties
+.gradle/

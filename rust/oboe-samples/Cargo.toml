@@ -1,0 +1,19 @@
+[package]
+name = "oboe-samples"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/oboe-samples"
+rust-version.workspace = true
+description = "Pure Rust sample audio engines and contracts derived from Android Oboe examples."
+readme = "README.md"
+keywords = ["android", "audio", "samples"]
+categories = ["multimedia::audio"]
+
+[dependencies]
+oboe-core = { version = "0.1.0-alpha.6", path = "../oboe-core" }
+
+[lib]
+crate-type = ["rlib"]
