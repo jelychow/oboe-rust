@@ -96,9 +96,9 @@ dependencies {
         )
     }
 
-    implementation 'io.ktor:ktor-client-core:2.3.12'
-    implementation 'io.ktor:ktor-client-okhttp:2.3.12'
-    implementation 'io.ktor:ktor-client-websockets:2.3.12'
+    implementation 'io.ktor:ktor-client-core:3.4.3'
+    implementation 'io.ktor:ktor-client-okhttp:3.4.3'
+    implementation 'io.ktor:ktor-client-websockets:3.4.3'
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'
