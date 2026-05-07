@@ -188,7 +188,7 @@ jobs:
           RUST_ANDROID_LIBRARIES: oboe-jni
 
       - name: Run wrapper instrumentation tests
-        uses: reactivecircus/android-emulator-runner@70f4dee990796918b78d040e3278474bdbd348a7 # v2
+        uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2
         with:
           api-level: 29
           emulator-boot-timeout: 900
