@@ -101,5 +101,5 @@ dependencies {
     implementation 'io.ktor:ktor-client-websockets:3.4.3'
 
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.json:json:20240303'
+    testImplementation 'org.json:json:20251224'
 }
